@@ -1,12 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+// const bcrypt = require('bcryptjs'); // Uncomment to use password hashing
 
 // Login endpoint
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
+    // NOTE: For development/demo purposes, passwords are stored in plain text.
+    // TODO: In production, implement bcrypt hashing:
+    // 1. Hash passwords before storing: bcrypt.hash(password, 10)
+    // 2. Compare with stored hash: bcrypt.compare(password, user.password)
+    
     // Buscar usuario
     const [users] = await db.query(
       'SELECT id, username, role FROM users WHERE username = ? AND password = ?',

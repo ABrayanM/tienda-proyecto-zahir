@@ -214,14 +214,55 @@ Si estás migrando desde la versión HTML estática:
 
 ## 📝 Notas de Seguridad
 
-⚠️ **Importante para Producción**:
+⚠️ **Este es un proyecto de desarrollo/demostración. Para uso en producción, implementa las siguientes mejoras de seguridad:**
 
-1. Cambia `SESSION_SECRET` por un valor aleatorio y seguro
-2. Implementa encriptación de contraseñas con bcrypt
-3. Usa HTTPS en producción
-4. Configura límites de tasa (rate limiting)
-5. Valida y sanitiza todas las entradas de usuario
-6. No expongas credenciales en el código
+### Seguridad Actual (Desarrollo)
+- ✅ Autenticación basada en sesiones
+- ✅ Control de acceso por roles
+- ✅ Separación frontend/backend
+- ✅ Variables de entorno para configuración
+
+### Requerimientos para Producción
+
+1. **Contraseñas**: 
+   - ❌ Actualmente en texto plano
+   - ✅ Implementar bcrypt para hash de contraseñas
+   ```javascript
+   const bcrypt = require('bcryptjs');
+   const hash = await bcrypt.hash(password, 10);
+   ```
+
+2. **Rate Limiting**:
+   - ❌ No implementado actualmente
+   - ✅ Agregar express-rate-limit
+   ```javascript
+   const rateLimit = require('express-rate-limit');
+   app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+   ```
+
+3. **CSRF Protection**:
+   - ❌ No implementado actualmente
+   - ✅ Agregar csurf middleware
+
+4. **HTTPS**:
+   - ✅ Usar certificados SSL en producción
+
+5. **Validación de Entrada**:
+   - ✅ Agregar validación con express-validator o Joi
+
+6. **Session Security**:
+   - ✅ Cambiar `SESSION_SECRET` por valor aleatorio y seguro
+   - ✅ Configurar cookies seguras (`secure: true`, `httpOnly: true`)
+
+7. **SQL Injection**:
+   - ✅ Ya protegido mediante consultas parametrizadas (mysql2)
+
+### Limitaciones Conocidas
+- Sin rate limiting en endpoints de API
+- Sin protección CSRF
+- Contraseñas en texto plano (desarrollo)
+- Sin validación robusta de entrada
+- Sin logging de auditoría
 
 ## 🤝 Contribuciones
 
