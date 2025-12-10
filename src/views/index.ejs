@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tienda de Abarrotes - Admin Panel</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="logo">
+        <img id="sidebarLogo" src="/img/logo.png" alt="logo">
+        <h2>Abarrotes</h2>
+      </div>
+
+      <nav class="menu">
+        <a id="menu-productos" class="active">Productos</a>
+        <a id="menu-ventas">Ventas</a>
+        <% if (user && user.role === 'ADMIN') { %>
+        <a id="menu-reportes">Reportes</a>
+        <a id="menu-config">Configuración</a>
+        <% } %>
+        <a id="menu-logout" style="margin-top:12px;color:#ffb4b4;cursor:pointer">Cerrar sesión</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <small>© 2025 - La tiendita de Esther</small>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main">
+      <header class="topbar">
+        <h1 id="topbarTitle">Bienvenido, <%= user ? user.username.toUpperCase() : 'Usuario' %></h1>
+      </header>
+
+      <section class="content">
+        <!-- El contenido dinámico se inyecta desde JavaScript -->
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // Pass user data to frontend
+    const CURRENT_USER = <%= JSON.stringify(user) %>;
+  </script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
