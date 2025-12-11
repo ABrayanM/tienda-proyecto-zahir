@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { body, param, validationResult } = require('express-validator');
 const db = require('../config/db');
 
 // Middleware to check authentication and admin role
@@ -11,26 +10,8 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// Helper to handle validation errors
-const handleValidationErrors = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, message: errors.array()[0].msg });
-  }
-  next();
-};
-
-// Validation middleware
-const validateSettingKey = [
-  param('key').trim().notEmpty().withMessage('La clave es requerida').isLength({ max: 50 }).withMessage('La clave no puede exceder 50 caracteres')
-];
-
-const validateSettingValue = [
-  body('value').notEmpty().withMessage('El valor es requerido')
-];
-
 // Get setting
-router.get('/:key', requireAdmin, validateSettingKey, handleValidationErrors, async (req, res) => {
+router.get('/:key', requireAdmin, async (req, res) => {
   try {
     const [settings] = await db.query(
       'SELECT setting_value FROM settings WHERE setting_key = ?',
@@ -49,7 +30,7 @@ router.get('/:key', requireAdmin, validateSettingKey, handleValidationErrors, as
 });
 
 // Save/Update setting
-router.post('/:key', requireAdmin, validateSettingKey, validateSettingValue, handleValidationErrors, async (req, res) => {
+router.post('/:key', requireAdmin, async (req, res) => {
   try {
     const { value } = req.body;
     
