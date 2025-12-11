@@ -10,13 +10,15 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Security middleware - helmet for HTTP headers security
+// Note: 'unsafe-inline' is used for scripts due to inline EJS scripts
+// For production, consider moving inline scripts to external files or using nonces
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // TODO: Replace with nonces in production
       imgSrc: ["'self'", "data:", "blob:"]
     }
   }

@@ -1,7 +1,12 @@
 // Centralized error response handler
 const errorResponse = (res, statusCode, message, error = null) => {
+  // Only log error details in development, and sanitize sensitive data
   if (error && process.env.NODE_ENV !== 'production') {
-    console.error('Error details:', error);
+    // Don't log full error objects that might contain sensitive data
+    console.error('Error occurred:', {
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
   return res.status(statusCode).json({ 
     success: false, 
