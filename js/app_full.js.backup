@@ -1,62 +1,47 @@
-/* app_full.js - MySQL Backend Version
+/* app_full.js
    Versión con protección por sesión y roles (ADMIN / CAJERO).
    Mantiene: Productos (CRUD), Carrito, Ventas (historial), Reportes, Configuración (subir logo, reset).
-   Ahora usa MySQL a través de API REST en lugar de LocalStorage.
+   LocalStorage keys:
+     - products_v2
+     - sales_v1
+     - store_settings_v1
+     - cart_temp_v1
+     - users_v1
+     - sessionUser
 */
 
-// API Helper Functions
-const API_BASE = '/api';
-
-async function apiCall(endpoint, options = {}) {
-  try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
-    });
-
-    if (response.status === 401) {
-      sessionStorage.removeItem('sessionUser');
-      window.location.href = 'login.html';
-      return null;
-    }
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Request failed');
-    }
-    return data;
-  } catch (error) {
-    console.error('API Error:', error);
-    throw error;
-  }
-}
-
 // Verificar sesión al cargar la página
-(async function checkSession() {
-  const session = JSON.parse(sessionStorage.getItem('sessionUser'));
+(function checkSession() {
+  const session = JSON.parse(localStorage.getItem('sessionUser'));
   if (!session) {
+      // Si no hay sesión, redirigir al login
       window.location.href = 'login.html';
   } else {
       console.log(`Usuario logueado: ${session.username} (${session.role})`);
+      // Opcional: mostrar el usuario en el panel
+      // document.querySelector('.topbar h1').textContent += ` - ${session.role}`;
   }
 })();
 
+
 /* ===================== PROTECCIÓN / SESIÓN ===================== */
-const sessionUser = JSON.parse(sessionStorage.getItem('sessionUser') || 'null');
+// Si no hay sesión activa, redirigir a login.html
+const sessionUser = JSON.parse(localStorage.getItem('sessionUser') || 'null');
 if (!sessionUser) {
+  // si estamos ya en login.html no redirigimos
   if (!location.pathname.endsWith('login.html')) {
     window.location.href = 'login.html';
   }
 } else {
+  // si hay sesión, asignamos variables
   var CURRENT_USER = sessionUser; // { username, role }
 }
 
 /* ===================== CONFIG ===================== */
-const LS_CART = 'cart_temp_v1'; // Cart still in LocalStorage for performance
+const LS_PRODUCTS = 'products_v2';
+const LS_SALES = 'sales_v1';
+const LS_SETTINGS = 'store_settings_v1';
+const LS_CART = 'cart_temp_v1';
 const DEFAULT_LOGO = '/mnt/data/3fc39e9b-4ca9-4918-8387-6a814daa9f4a.png';
 
 /* ===================== DOM ===================== */
@@ -70,106 +55,33 @@ if (typeof CURRENT_USER !== 'undefined' && topbarTitle) {
   topbarTitle.textContent = `Bienvenido, ${CURRENT_USER.username.toUpperCase()}`;
 }
 
-/* ===================== API HELPERS ===================== */
-async function loadProducts() { 
-  try {
-    return await apiCall('/products');
-  } catch (error) {
-    alert('Error cargando productos');
-    return [];
-  }
-}
+/* ===================== STORAGE HELPERS ===================== */
+function loadProducts() { return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]'); }
+function saveProducts(list) { localStorage.setItem(LS_PRODUCTS, JSON.stringify(list)); }
 
-async function saveProduct(product) {
-  try {
-    if (product.id) {
-      return await apiCall(`/products/${product.id}`, {
-        method: 'PUT',
-        body: JSON.stringify(product)
-      });
-    } else {
-      return await apiCall('/products', {
-        method: 'POST',
-        body: JSON.stringify(product)
-      });
-    }
-  } catch (error) {
-    alert('Error guardando producto: ' + error.message);
-    throw error;
-  }
-}
+function loadSales() { return JSON.parse(localStorage.getItem(LS_SALES) || '[]'); }
+function saveSales(list) { localStorage.setItem(LS_SALES, JSON.stringify(list)); }
 
-async function deleteProductAPI(id) {
-  try {
-    return await apiCall(`/products/${id}`, { method: 'DELETE' });
-  } catch (error) {
-    alert('Error eliminando producto: ' + error.message);
-    throw error;
-  }
-}
+function loadSettings() { return JSON.parse(localStorage.getItem(LS_SETTINGS) || '{}'); }
+function saveSettings(s) { localStorage.setItem(LS_SETTINGS, JSON.stringify(s)); }
 
-async function loadSales() { 
-  try {
-    return await apiCall('/sales');
-  } catch (error) {
-    alert('Error cargando ventas');
-    return [];
-  }
-}
-
-async function saveSale(sale) {
-  try {
-    return await apiCall('/sales', {
-      method: 'POST',
-      body: JSON.stringify(sale)
-    });
-  } catch (error) {
-    alert('Error guardando venta: ' + error.message);
-    throw error;
-  }
-}
-
-async function deleteSaleAPI(id) {
-  try {
-    return await apiCall(`/sales/${id}`, { method: 'DELETE' });
-  } catch (error) {
-    alert('Error eliminando venta: ' + error.message);
-    throw error;
-  }
-}
-
-async function clearAllSales() {
-  try {
-    return await apiCall('/sales', { method: 'DELETE' });
-  } catch (error) {
-    alert('Error limpiando ventas: ' + error.message);
-    throw error;
-  }
-}
-
-async function loadSettings() { 
-  try {
-    return await apiCall('/settings');
-  } catch (error) {
-    return {};
-  }
-}
-
-async function saveSetting(key, value) {
-  try {
-    return await apiCall(`/settings/${key}`, {
-      method: 'PUT',
-      body: JSON.stringify({ value })
-    });
-  } catch (error) {
-    alert('Error guardando configuración: ' + error.message);
-    throw error;
-  }
-}
-
-// Cart still uses localStorage for performance
 function loadCart() { return JSON.parse(localStorage.getItem(LS_CART) || '[]'); }
 function saveCart(c) { localStorage.setItem(LS_CART, JSON.stringify(c)); }
+
+/* ===================== INITIAL SEED ===================== */
+if (loadProducts().length === 0) {
+  const seed = [
+    {id:1,name:'Arroz 1kg',category:'Granos',price:9.50,stock:50},
+    {id:2,name:'Azúcar 1kg',category:'Dulces',price:4.20,stock:40},
+    {id:3,name:'Aceite 1L',category:'Aceites',price:12.00,stock:30},
+    {id:4,name:'Leche 1L',category:'Lácteos',price:3.80,stock:60},
+    {id:5,name:'Fideos 500g',category:'Pastas',price:2.50,stock:80},
+    {id:6,name:'Pollo entero',category:'Carnes',price:18.00,stock:15},
+    {id:7,name:'Pan',category:'Panadería',price:1.20,stock:100},
+    {id:8,name:'Café 250g',category:'Bebidas',price:8.75,stock:25}
+  ];
+  saveProducts(seed);
+}
 
 /* ===================== UTIL HELPERS ===================== */
 function escapeHtml(s) {
@@ -202,14 +114,10 @@ function applyMenuRestrictions(){
 }
 
 /* Logout */
-async function logout(){
-  try {
-    await apiCall('/auth/logout', { method: 'POST' });
-  } catch (error) {
-    console.error('Logout error:', error);
-  }
-  sessionStorage.removeItem('sessionUser');
-  localStorage.removeItem(LS_CART);
+function logout(){
+  localStorage.removeItem('sessionUser');
+  // mantén carrito? lo borramos también.
+  // localStorage.removeItem(LS_CART);
   window.location.href = 'login.html';
 }
 
@@ -218,10 +126,10 @@ const logoutLink = document.getElementById('menu-logout');
 if (logoutLink) logoutLink.onclick = logout;
 
 /* ===================== PRODUCTS VIEW (CRUD) ===================== */
-let productsCache = []; // cached array used in rendering
+let productsCache = loadProducts(); // cached array used in rendering
 let editingProductId = null; // null = creating new, otherwise id of product being edited
 
-async function renderProductsView(){
+function renderProductsView(){
   const content = clearMain();
 
   // controls
@@ -308,7 +216,7 @@ async function renderProductsView(){
   content.appendChild(cartBox);
 
   // draw product rows
-  const products = await loadProducts();
+  const products = loadProducts();
   productsCache = products.slice();
   const tbody = tableWrap.querySelector('#productsTbody');
 
@@ -383,35 +291,39 @@ async function renderProductsView(){
   }
 
   // default submit handler (create new or update existing)
-  async function productFormSubmitHandler(e){
+  function productFormSubmitHandler(e){
     e.preventDefault();
     const fName = document.getElementById('fName').value.trim();
     const fPrice = parseFloat(document.getElementById('fPrice').value) || 0;
     const fCategory = document.getElementById('fCategory').value.trim() || 'General';
     const fStock = parseInt(document.getElementById('fStock').value) || 0;
 
-    try {
-      if(editingProductId === null){
-        // create
-        await saveProduct({ name: fName, price: fPrice, category: fCategory, stock: fStock });
-        alert('Producto agregado');
-      } else {
-        // update
-        await saveProduct({ id: editingProductId, name: fName, price: fPrice, category: fCategory, stock: fStock });
+    let list = loadProducts();
+    if(editingProductId === null){
+      // create
+      const id = list.length ? Math.max(...list.map(x=>x.id)) + 1 : 1;
+      list.push({ id, name: fName, price: fPrice, category: fCategory, stock: fStock });
+      saveProducts(list);
+      alert('Producto agregado');
+    } else {
+      // update
+      const idx = list.findIndex(x => x.id === editingProductId);
+      if(idx >= 0){
+        list[idx].name = fName;
+        list[idx].price = fPrice;
+        list[idx].category = fCategory;
+        list[idx].stock = fStock;
+        saveProducts(list);
         alert('Producto actualizado');
+      } else {
+        alert('Producto no encontrado al intentar actualizar');
       }
-
-      editingProductId = null;
-      formBox.querySelector('#productFormNew').classList.add('hidden');
-      formBox.querySelector('#productFormNew').reset();
-      
-      // Reload products
-      const products = await loadProducts();
-      productsCache = products.slice();
-      drawRows(controls.querySelector('#searchProd').value);
-    } catch (error) {
-      // Error already shown in saveProduct
     }
+
+    editingProductId = null;
+    formBox.querySelector('#productFormNew').classList.add('hidden');
+    formBox.querySelector('#productFormNew').reset();
+    drawRows(controls.querySelector('#searchProd').value);
   }
 
   // attach the default submit handler if exists (and only for admin)
@@ -446,14 +358,15 @@ function applyRoleRestrictionsAfterRender(){
 
 /* ========== OPEN FORM TO EDIT PRODUCT ========== */
 /* This function fills the form with product data and sets editingProductId */
-async function openProductForm(id){
+function openProductForm(id){
   if (!isAdmin()) { alert('No tienes permisos para editar productos'); return; }
 
-  const p = productsCache.find(x => x.id === id);
+  const list = loadProducts();
+  const p = list.find(x => x.id === id);
   if(!p) { alert('Producto no encontrado'); return; }
 
   // ensure products view is rendered and form exists
-  await renderProductsView(); // this rebuilds UI and will re-create the form DOM
+  renderProductsView(); // this rebuilds UI and will re-create the form DOM
   setTimeout(()=>{ // small timeout to wait for DOM to build
     const form = document.getElementById('productFormNew');
     if(!form) { alert('Formulario no disponible'); return; }
@@ -470,27 +383,25 @@ async function openProductForm(id){
 }
 
 /* ========== DELETE PRODUCT ========== */
-async function deleteProduct(id){
+function deleteProduct(id){
   if (!isAdmin()) { alert('No tienes permisos para eliminar productos'); return; }
   if(!confirm('¿Seguro que deseas eliminar este producto?')) return;
-  
-  try {
-    await deleteProductAPI(id);
-    alert('Producto eliminado');
-    // if currently on Products view, re-render
-    const active = Array.from(document.querySelectorAll('.menu a')).find(a => a.classList.contains('active'));
-    if(active && active.textContent.trim() === 'Productos') await renderProductsView();
-  } catch (error) {
-    // Error already shown in deleteProductAPI
-  }
+  let list = loadProducts();
+  list = list.filter(p => p.id !== id);
+  saveProducts(list);
+  alert('Producto eliminado');
+  // if currently on Products view, re-render
+  const active = Array.from(document.querySelectorAll('.menu a')).find(a => a.classList.contains('active'));
+  if(active && active.textContent.trim() === 'Productos') renderProductsView();
 }
 
 /* ===================== CART LOGIC ===================== */
 let CART = loadCart(); // [{id,name,price,qty}]
 function persistCart(){ saveCart(CART); }
 
-async function addToCart(productId, qty){
-  const p = productsCache.find(x => x.id === productId);
+function addToCart(productId, qty){
+  const products = loadProducts();
+  const p = products.find(x => x.id === productId);
   if(!p) { alert('Producto no encontrado'); return; }
   if(p.stock !== undefined && qty > p.stock) { alert('Cantidad mayor al stock disponible'); return; }
 
@@ -537,30 +448,33 @@ function toggleCart(){
 }
 
 /* process checkout */
-async function processCheckout(){
+function processCheckout(){
   if(CART.length === 0) { alert('Carrito vacío'); return; }
 
-  try {
-    const total = CART.reduce((s, it) => s + it.price * it.qty, 0);
-    
-    // Send sale to API
-    await saveSale({
-      items: CART.map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.qty })),
-      total: total
-    });
-
-    // clear cart
-    CART = [];
-    persistCart();
-    renderCartContents();
-    alert('Venta registrada. Total S/ ' + total.toFixed(2));
-
-    // refresh product list view if active
-    const active = Array.from(document.querySelectorAll('.menu a')).find(a => a.classList.contains('active'));
-    if(active && active.textContent.trim() === 'Productos') await renderProductsView();
-  } catch (error) {
-    // Error already shown in saveSale
+  // reduce stock
+  const prod = loadProducts();
+  for(const it of CART){
+    const p = prod.find(x => x.id === it.id);
+    if(p && p.stock !== undefined) p.stock = Math.max(0, p.stock - it.qty);
   }
+  saveProducts(prod);
+
+  // create sale record
+  const sales = loadSales();
+  const total = CART.reduce((s, it) => s + it.price * it.qty, 0);
+  const sale = { id: Date.now(), date: new Date().toISOString(), items: CART.map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.qty })), total };
+  sales.push(sale);
+  saveSales(sales);
+
+  // clear cart
+  CART = [];
+  persistCart();
+  renderCartContents();
+  alert('Venta registrada. Total S/ ' + total.toFixed(2));
+
+  // refresh product list view if active
+  const active = Array.from(document.querySelectorAll('.menu a')).find(a => a.classList.contains('active'));
+  if(active && active.textContent.trim() === 'Productos') renderProductsView();
 }
 
 /* global click handlers for cart buttons */
@@ -570,7 +484,7 @@ document.addEventListener('click', (e) => {
 });
 
 /* ===================== SALES / HISTORIAL ===================== */
-async function renderSalesView(){
+function renderSalesView(){
   const content = clearMain();
   const actions = document.createElement('div'); actions.className='actions';
   actions.innerHTML = `<button id="exportSalesBtn" class="btn">⬇ Exportar Ventas (CSV)</button> <button id="clearSales" class="btn">🗑️ Limpiar historial</button>`;
@@ -587,8 +501,8 @@ async function renderSalesView(){
   `;
   content.appendChild(tableWrap);
 
-  async function draw(){
-    const sales = (await loadSales()).slice().reverse();
+  function draw(){
+    const sales = loadSales().slice().reverse();
     const tbody = tableWrap.querySelector('#salesTbody'); tbody.innerHTML='';
     if(sales.length === 0) {
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">No hay ventas</td></tr>';
@@ -598,49 +512,32 @@ async function renderSalesView(){
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${formatDateIso(s.date)}</td>
-        <td>${s.items.map(i=>`${escapeHtml(i.product_name || i.name)} x${i.qty}`).join('<br>')}</td>
+        <td>${s.items.map(i=>`${escapeHtml(i.name)} x${i.qty}`).join('<br>')}</td>
         <td>${Number(s.total).toFixed(2)}</td>
         <td><button class="btn" data-id="${s.id}">Eliminar</button></td>
       `;
       tbody.appendChild(tr);
     });
 
-    tbody.querySelectorAll('button[data-id]').forEach(btn => btn.onclick = async ()=>{ 
-      const id = Number(btn.dataset.id); 
-      if(!confirm('Eliminar venta?')) return; 
-      try {
-        await deleteSaleAPI(id);
-        await draw();
-      } catch (error) {
-        // Error already shown
-      }
-    });
+    tbody.querySelectorAll('button[data-id]').forEach(btn => btn.onclick = ()=>{ const id = Number(btn.dataset.id); if(!confirm('Eliminar venta?')) return; const list = loadSales().filter(x => x.id !== id); saveSales(list); draw(); });
   }
 
-  actions.querySelector('#exportSalesBtn').onclick = async ()=> {
-    const data = await loadSales();
+  actions.querySelector('#exportSalesBtn').onclick = ()=> {
+    const data = loadSales();
     if(data.length === 0) return alert('No hay ventas para exportar');
     const rows = []; rows.push(['id','date','items','total']);
-    for(const s of data) rows.push([s.id, s.date, s.items.map(it=>`${it.product_name || it.name} x${it.qty}`).join('; '), Number(s.total).toFixed(2)]);
+    for(const s of data) rows.push([s.id, s.date, s.items.map(it=>`${it.name} x${it.qty}`).join('; '), Number(s.total).toFixed(2)]);
     const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
     downloadText(csv,'ventas.csv','text/csv');
   };
 
-  actions.querySelector('#clearSales').onclick = async ()=> { 
-    if(!confirm('Borrar todo el historial de ventas?')) return; 
-    try {
-      await clearAllSales();
-      await draw();
-    } catch (error) {
-      // Error already shown
-    }
-  };
+  actions.querySelector('#clearSales').onclick = ()=> { if(!confirm('Borrar todo el historial de ventas?')) return; saveSales([]); draw(); };
 
-  await draw();
+  draw();
 }
 
 /* ===================== REPORTS ===================== */
-async function renderReportsView(){
+function renderReportsView(){
   if (!isAdmin()) { // only admin allowed
     clearMain();
     const c = clearMain();
@@ -667,24 +564,15 @@ async function renderReportsView(){
   const period = content.querySelector('#periodSelect');
   const area = content.querySelector('#reportsArea');
 
-  async function generate(){
-    const sales = await loadSales();
+  function generate(){
+    const sales = loadSales();
     const filt = filterByPeriod(sales, period.value);
 
     const totalIncome = filt.reduce((s,x)=>s + Number(x.total), 0);
     const counts = {};
-    for(const s of filt){ 
-      for(const it of s.items){ 
-        const itemId = it.product_id || it.id;
-        const itemName = it.product_name || it.name;
-        counts[itemId] = {
-          id: itemId,
-          name: itemName,
-          qty: (counts[itemId]?.qty || 0) + it.qty
-        };
-      }
-    }
-    const arr = Object.values(counts);
+    for(const s of filt){ for(const it of s.items){ counts[it.id] = (counts[it.id]||0) + it.qty; }}
+    const prod = loadProducts();
+    const arr = Object.keys(counts).map(id=>({ id: Number(id), name: (prod.find(p=>p.id==id)||{}).name || 'Desconocido', qty: counts[id] }));
     arr.sort((a,b)=>b.qty-a.qty);
 
     area.innerHTML = `
@@ -707,7 +595,7 @@ async function renderReportsView(){
   }
 
   btnGen.onclick = generate;
-  await generate();
+  generate();
 }
 
 function filterByPeriod(sales, period){
@@ -729,7 +617,7 @@ function filterByPeriod(sales, period){
 }
 
 /* ===================== SETTINGS (no dark mode) ===================== */
-async function renderSettingsView(){
+function renderSettingsView(){
   if (!isAdmin()) {
     clearMain();
     const c = clearMain();
@@ -738,7 +626,7 @@ async function renderSettingsView(){
   }
 
   const content = clearMain();
-  const settings = await loadSettings();
+  const settings = loadSettings();
   const logo = settings.logo || DEFAULT_LOGO;
 
   content.innerHTML = `
@@ -749,7 +637,7 @@ async function renderSettingsView(){
         <div style="flex:1">
           <label>Subir nuevo logo</label>
           <input type="file" id="logoFile" accept="image/*"><br>
-          <small>El logo se guarda en la base de datos (dataURL).</small>
+          <small>El logo se guarda en localStorage (dataURL).</small>
         </div>
       </div>
       <hr>
@@ -759,67 +647,64 @@ async function renderSettingsView(){
     </div>
   `;
 
-  content.querySelector('#logoFile').onchange = async function(e){
+  content.querySelector('#logoFile').onchange = function(e){
     const f = e.target.files[0];
     if(!f) return;
     const reader = new FileReader();
-    reader.onload = async ()=>{
+    reader.onload = ()=>{
       const data = reader.result;
-      try {
-        await saveSetting('logo', data);
-        document.getElementById('logoPreview').src = data;
-        alert('Logo actualizado');
-        // update sidebar logo if present
-        const sidebarLogo = document.querySelector('.logo img');
-        if(sidebarLogo) sidebarLogo.src = data;
-      } catch (error) {
-        // Error already shown
-      }
+      const s = loadSettings(); s.logo = data; saveSettings(s);
+      document.getElementById('logoPreview').src = data;
+      alert('Logo actualizado');
+      // update sidebar logo if present
+      const sidebarLogo = document.querySelector('.logo img');
+      if(sidebarLogo) sidebarLogo.src = data;
     };
     reader.readAsDataURL(f);
   };
 
-  content.querySelector('#resetBtn').onclick = async function(){
+  content.querySelector('#resetBtn').onclick = function(){
     if(!confirm('Esto eliminará productos, ventas y ajustes. Continuar?')) return;
-    alert('Nota: Para restaurar completamente, ejecute "npm run init-db" desde el servidor');
-    localStorage.removeItem(LS_CART);
+    localStorage.removeItem(LS_PRODUCTS); localStorage.removeItem(LS_SALES); localStorage.removeItem(LS_SETTINGS); localStorage.removeItem(LS_CART);
     location.reload();
   };
 }
 
 /* ===================== NAVIGATION SETUP ===================== */
 sidebarLinks.forEach(a=>{
-  a.onclick = async (e)=>{
+  a.onclick = (e)=>{
     e.preventDefault();
     // If clicking logout handled separately
     if (a.id === 'menu-logout') return;
     sidebarLinks.forEach(x=>x.classList.remove('active'));
     a.classList.add('active');
     const t = a.textContent.trim();
-    if(t === 'Productos') await renderProductsView();
-    else if(t === 'Ventas') await renderSalesView();
-    else if(t === 'Reportes') await renderReportsView();
-    else if(t === 'Configuración') await renderSettingsView();
+    if(t === 'Productos') renderProductsView();
+    else if(t === 'Ventas') renderSalesView();
+    else if(t === 'Reportes') renderReportsView();
+    else if(t === 'Configuración') renderSettingsView();
   };
 });
 
 /* ===================== INITIALIZE ===================== */
-(async function init(){
+(function init(){
   // apply menu restrictions before anything
   applyMenuRestrictions();
 
   // set sidebar logo from settings if exists
-  const settings = await loadSettings(); 
-  const logo = settings.logo || DEFAULT_LOGO;
+  const settings = loadSettings(); const logo = settings.logo || DEFAULT_LOGO;
   if(sidebarLogoImg) sidebarLogoImg.src = logo;
 
   // default view
   const prodLink = document.getElementById('menu-productos');
-  if(prodLink) prodLink.click(); else await renderProductsView();
+  if(prodLink) prodLink.click(); else renderProductsView();
 })();
 
 /* Expose helpers for debugging */
-window._app = { loadProducts, loadSales, loadSettings, loadCart, saveCart, logout };
+window._app = { loadProducts, saveProducts, loadSales, saveSales, loadSettings, saveSettings, loadCart, saveCart, logout };
 
 // Logout
-document.getElementById('menu-logout').addEventListener('click', logout);
+document.getElementById('menu-logout').addEventListener('click', () => {
+  localStorage.removeItem('sessionUser'); // elimina la sesión
+  window.location.href = 'login.html';    // vuelve al login
+});
