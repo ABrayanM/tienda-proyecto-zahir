@@ -275,8 +275,6 @@ async function renderProductsView(){
       <input id="fPrice" type="number" step="0.01" min="0" required>
       <label>Categoría</label>
       <input id="fCategory">
-      <label>Stock</label>
-      <input id="fStock" type="number" min="0" value="0">
       <div style="display:flex;gap:8px">
         <button class="btn primary" type="submit">Guardar</button>
         <button type="button" id="cancelNew" class="btn">Cancelar</button>
@@ -390,16 +388,15 @@ async function renderProductsView(){
     const fName = document.getElementById('fName').value.trim();
     const fPrice = parseFloat(document.getElementById('fPrice').value) || 0;
     const fCategory = document.getElementById('fCategory').value.trim() || 'General';
-    const fStock = parseInt(document.getElementById('fStock').value) || 0;
 
     try {
       if(editingProductId === null){
         // create
-        await saveProduct({ name: fName, price: fPrice, category: fCategory, stock: fStock });
+        await saveProduct({ name: fName, price: fPrice, category: fCategory });
         alert('Producto agregado');
       } else {
         // update
-        await saveProduct({ id: editingProductId, name: fName, price: fPrice, category: fCategory, stock: fStock });
+        await saveProduct({ id: editingProductId, name: fName, price: fPrice, category: fCategory });
         alert('Producto actualizado');
       }
 
@@ -465,7 +462,6 @@ async function openProductForm(id){
     document.getElementById('fName').value = p.name;
     document.getElementById('fPrice').value = p.price;
     document.getElementById('fCategory').value = p.category || '';
-    document.getElementById('fStock').value = p.stock || 0;
 
     // ensure submit will update the correct product (productFormSubmitHandler already uses editingProductId variable)
   }, 80);

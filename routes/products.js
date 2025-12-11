@@ -91,28 +91,19 @@ router.post('/', requireAdmin, async (req, res) => {
   try {
     await connection.beginTransaction();
     
-    const { name, category, price, stock } = req.body;
+    const { name, category, price } = req.body;
 
     if (!name || price === undefined) {
       return res.status(400).json({ error: 'Name and price are required' });
     }
 
-    // Insert product with initial stock (will be synced with movements)
+    // Insert product with stock = 0 (stock is managed through stock_movements)
     const [result] = await connection.query(
       'INSERT INTO products (name, category, price, stock) VALUES (?, ?, ?, ?)',
-      [name, category || 'General', price, stock || 0]
+      [name, category || 'General', price, 0]
     );
 
     const productId = result.insertId;
-
-    // Create corresponding INGRESO movement if initial stock is provided
-    if (stock && stock > 0) {
-      await connection.query(
-        `INSERT INTO stock_movements (product_id, movement_type, quantity, reason, user_id) 
-         VALUES (?, 'INGRESO', ?, 'Stock inicial', ?)`,
-        [productId, stock, req.session.user.id]
-      );
-    }
 
     await connection.commit();
 
