@@ -176,7 +176,6 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":"&#39;"}[c]));
 }
 function formatDateIso(iso){ const d=new Date(iso); return d.toLocaleString(); }
-function downloadText(text, filename, type='text/plain'){ const blob=new Blob([text],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
 function getProductName(item){ return item.product_name || item.name || 'Desconocido'; }
 
 /* ===================== UI HELPERS ===================== */
@@ -574,7 +573,7 @@ document.addEventListener('click', (e) => {
 async function renderSalesView(){
   const content = clearMain();
   const actions = document.createElement('div'); actions.className='actions';
-  actions.innerHTML = `<button id="exportSalesBtn" class="btn">⬇ Exportar Ventas (CSV)</button> <button id="clearSales" class="btn">🗑️ Limpiar historial</button>`;
+  actions.innerHTML = `<button id="clearSales" class="btn">🗑️ Limpiar historial</button>`;
   content.appendChild(actions);
 
   const tableWrap = document.createElement('div');
@@ -618,15 +617,6 @@ async function renderSalesView(){
     });
   }
 
-  actions.querySelector('#exportSalesBtn').onclick = async ()=> {
-    const data = await loadSales();
-    if(data.length === 0) return alert('No hay ventas para exportar');
-    const rows = []; rows.push(['id','date','items','total']);
-    for(const s of data) rows.push([s.id, s.date, s.items.map(it=>`${getProductName(it)} x${it.qty}`).join('; '), Number(s.total).toFixed(2)]);
-    const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-    downloadText(csv,'ventas.csv','text/csv');
-  };
-
   actions.querySelector('#clearSales').onclick = async ()=> { 
     if(!confirm('Borrar todo el historial de ventas?')) return; 
     try {
@@ -659,12 +649,10 @@ async function renderReportsView(){
         <option value="month">Este mes</option>
       </select>
       <button id="btnGenerate" class="btn primary">Generar Reporte</button>
-      <button id="btnExportReport" class="btn">⬇ Exportar CSV</button>
     </div>
     <div id="reportsArea"></div>
   `;
   const btnGen = content.querySelector('#btnGenerate');
-  const btnExp = content.querySelector('#btnExportReport');
   const period = content.querySelector('#periodSelect');
   const area = content.querySelector('#reportsArea');
 
@@ -698,13 +686,6 @@ async function renderReportsView(){
         <ol id="topList">${arr.slice(0,10).map(a=>`<li>${escapeHtml(a.name)} — ${a.qty} unidades</li>`).join('')}</ol>
       </div>
     `;
-
-    btnExp.onclick = ()=>{
-      const rows=[]; rows.push(['product_id','product_name','units_sold']);
-      for(const a of arr) rows.push([a.id, a.name, a.qty]);
-      const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-      downloadText(csv,'reporte_productos.csv','text/csv');
-    };
   }
 
   btnGen.onclick = generate;
