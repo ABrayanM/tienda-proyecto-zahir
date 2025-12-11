@@ -89,6 +89,25 @@ async function initDatabase() {
     `);
     console.log('✅ Table "settings" created');
 
+    // Create inventory_movements table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS inventory_movements (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        product_id INT NOT NULL,
+        type ENUM('IN', 'OUT', 'ADJUST') NOT NULL,
+        qty INT UNSIGNED NOT NULL,
+        reason VARCHAR(255) NULL,
+        user_id INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+        INDEX idx_product_id (product_id),
+        INDEX idx_type (type),
+        INDEX idx_created_at (created_at)
+      )
+    `);
+    console.log('✅ Table "inventory_movements" created');
+
     // Insert default users
     // NOTE: Default passwords are intentionally simple for initial setup
     // IMPORTANT: Change these passwords after first login in production!
@@ -124,7 +143,8 @@ async function initDatabase() {
     // Insert default logo setting (using relative path)
     await connection.query(`
       INSERT INTO settings (setting_key, setting_value) VALUES
-      ('logo', './img/logo.png')
+      ('logo', './img/logo.png'),
+      ('min_stock_alert', '10')
       ON DUPLICATE KEY UPDATE setting_key=setting_key
     `);
     console.log('✅ Default settings inserted');

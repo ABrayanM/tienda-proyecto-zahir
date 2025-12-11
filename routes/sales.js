@@ -121,6 +121,12 @@ router.post('/', requireAuth, async (req, res) => {
         'UPDATE products SET stock = stock - ? WHERE id = ?',
         [item.qty, item.id]
       );
+
+      // Insert inventory movement for OUT
+      await connection.query(
+        'INSERT INTO inventory_movements (product_id, type, qty, reason, user_id) VALUES (?, ?, ?, ?, ?)',
+        [item.id, 'OUT', item.qty, 'SALE', req.session.user.id]
+      );
     }
 
     await connection.commit();
