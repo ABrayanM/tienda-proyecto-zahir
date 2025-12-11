@@ -85,7 +85,6 @@ Implemented RESTful API with Express:
 ✅ Sales history and reporting
 ✅ Configuration management
 ✅ Logo customization
-✅ CSV export functionality
 ✅ Role-based UI restrictions
 
 ### Enhanced Functionality
@@ -169,13 +168,11 @@ npm start
 - [ ] Sale is recorded in database
 - [ ] Cannot sell more than available stock
 - [ ] View sales history
-- [ ] Export sales to CSV
 
 ### Reports
 - [ ] Generate income reports
 - [ ] Top products calculation
 - [ ] Period filters work
-- [ ] Export reports to CSV
 - [ ] CAJERO cannot access reports
 
 ### Settings
