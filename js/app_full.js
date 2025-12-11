@@ -1,4 +1,87 @@
-/* app.js - Frontend application adapted for Node.js backend with MySQL */
+/* app_full.js
+   Versión con protección por sesión y roles (ADMIN / CAJERO).
+   Mantiene: Productos (CRUD), Carrito, Ventas (historial), Reportes, Configuración (subir logo, reset).
+   LocalStorage keys:
+     - products_v2
+     - sales_v1
+     - store_settings_v1
+     - cart_temp_v1
+     - users_v1
+     - sessionUser
+*/
+
+// Verificar sesión al cargar la página
+(function checkSession() {
+  const session = JSON.parse(localStorage.getItem('sessionUser'));
+  if (!session) {
+      // Si no hay sesión, redirigir al login
+      window.location.href = 'login.html';
+  } else {
+      console.log(`Usuario logueado: ${session.username} (${session.role})`);
+      // Opcional: mostrar el usuario en el panel
+      // document.querySelector('.topbar h1').textContent += ` - ${session.role}`;
+  }
+})();
+
+
+/* ===================== PROTECCIÓN / SESIÓN ===================== */
+// Si no hay sesión activa, redirigir a login.html
+const sessionUser = JSON.parse(localStorage.getItem('sessionUser') || 'null');
+if (!sessionUser) {
+  // si estamos ya en login.html no redirigimos
+  if (!location.pathname.endsWith('login.html')) {
+    window.location.href = 'login.html';
+  }
+} else {
+  // si hay sesión, asignamos variables
+  var CURRENT_USER = sessionUser; // { username, role }
+}
+
+/* ===================== CONFIG ===================== */
+const LS_PRODUCTS = 'products_v2';
+const LS_SALES = 'sales_v1';
+const LS_SETTINGS = 'store_settings_v1';
+const LS_CART = 'cart_temp_v1';
+const DEFAULT_LOGO = '/mnt/data/3fc39e9b-4ca9-4918-8387-6a814daa9f4a.png';
+
+/* ===================== DOM ===================== */
+const sidebarLinks = document.querySelectorAll('.menu a');
+const contentRoot = document.querySelector('.content');
+const sidebarLogoImg = document.querySelector('.logo img');
+const topbarTitle = document.querySelector('.topbar h1');
+
+/* Mostrar nombre de usuario en topbar */
+if (typeof CURRENT_USER !== 'undefined' && topbarTitle) {
+  topbarTitle.textContent = `Bienvenido, ${CURRENT_USER.username.toUpperCase()}`;
+}
+
+/* ===================== STORAGE HELPERS ===================== */
+function loadProducts() { return JSON.parse(localStorage.getItem(LS_PRODUCTS) || '[]'); }
+function saveProducts(list) { localStorage.setItem(LS_PRODUCTS, JSON.stringify(list)); }
+
+function loadSales() { return JSON.parse(localStorage.getItem(LS_SALES) || '[]'); }
+function saveSales(list) { localStorage.setItem(LS_SALES, JSON.stringify(list)); }
+
+function loadSettings() { return JSON.parse(localStorage.getItem(LS_SETTINGS) || '{}'); }
+function saveSettings(s) { localStorage.setItem(LS_SETTINGS, JSON.stringify(s)); }
+
+function loadCart() { return JSON.parse(localStorage.getItem(LS_CART) || '[]'); }
+function saveCart(c) { localStorage.setItem(LS_CART, JSON.stringify(c)); }
+
+/* ===================== INITIAL SEED ===================== */
+if (loadProducts().length === 0) {
+  const seed = [
+    {id:1,name:'Arroz 1kg',category:'Granos',price:9.50,stock:50},
+    {id:2,name:'Azúcar 1kg',category:'Dulces',price:4.20,stock:40},
+    {id:3,name:'Aceite 1L',category:'Aceites',price:12.00,stock:30},
+    {id:4,name:'Leche 1L',category:'Lácteos',price:3.80,stock:60},
+    {id:5,name:'Fideos 500g',category:'Pastas',price:2.50,stock:80},
+    {id:6,name:'Pollo entero',category:'Carnes',price:18.00,stock:15},
+    {id:7,name:'Pan',category:'Panadería',price:1.20,stock:100},
+    {id:8,name:'Café 250g',category:'Bebidas',price:8.75,stock:25}
+  ];
+  saveProducts(seed);
+}
 
 /* ===================== UTIL HELPERS ===================== */
 function escapeHtml(s) {
@@ -7,12 +90,6 @@ function escapeHtml(s) {
 function formatDateIso(iso){ const d=new Date(iso); return d.toLocaleString(); }
 function downloadText(text, filename, type='text/plain'){ const blob=new Blob([text],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
 
-/* ===================== DOM ===================== */
-const sidebarLinks = document.querySelectorAll('.menu a');
-const contentRoot = document.querySelector('.content');
-const sidebarLogoImg = document.querySelector('#sidebarLogo');
-const topbarTitle = document.querySelector('#topbarTitle');
-
 /* ===================== UI HELPERS ===================== */
 function clearMain(){
   contentRoot.innerHTML = '';
@@ -20,33 +97,28 @@ function clearMain(){
 }
 
 /* ===================== ROLE HELPERS ===================== */
-function isAdmin(){ return CURRENT_USER && CURRENT_USER.role === 'ADMIN'; }
-function isCashier(){ return CURRENT_USER && CURRENT_USER.role === 'CAJERO'; }
+function isAdmin(){ return typeof CURRENT_USER !== 'undefined' && CURRENT_USER.role === 'ADMIN'; }
+function isCashier(){ return typeof CURRENT_USER !== 'undefined' && CURRENT_USER.role === 'CAJERO'; }
 
-/* ===================== API HELPERS ===================== */
-async function apiRequest(url, options = {}) {
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
-    });
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('API Error:', error);
-    return { success: false, message: 'Error de conexión' };
+/* Oculta menú / controles según rol (ejecutar en init) */
+function applyMenuRestrictions(){
+  if (isCashier()){
+    // ocultar reportes y config del sidebar
+    const reportLink = document.getElementById('menu-reportes');
+    const configLink = document.getElementById('menu-config');
+    const prodLink = document.getElementById('menu-productos');
+    if(reportLink) reportLink.style.display = 'none';
+    if(configLink) configLink.style.display = 'none';
+    // opcional: dejar ventas visible
   }
 }
 
 /* Logout */
-async function logout(){
-  const result = await apiRequest('/auth/logout', { method: 'POST' });
-  if (result.success) {
-    window.location.href = '/login';
-  }
+function logout(){
+  localStorage.removeItem('sessionUser');
+  // mantén carrito? lo borramos también.
+  // localStorage.removeItem(LS_CART);
+  window.location.href = 'login.html';
 }
 
 /* Conectar logout link */
@@ -54,24 +126,17 @@ const logoutLink = document.getElementById('menu-logout');
 if (logoutLink) logoutLink.onclick = logout;
 
 /* ===================== PRODUCTS VIEW (CRUD) ===================== */
-let productsCache = [];
-let editingProductId = null;
+let productsCache = loadProducts(); // cached array used in rendering
+let editingProductId = null; // null = creating new, otherwise id of product being edited
 
-async function renderProductsView(){
+function renderProductsView(){
   const content = clearMain();
-
-  // Load products from API
-  const result = await apiRequest('/api/products');
-  if (!result.success) {
-    content.innerHTML = '<div class="panel"><p>Error cargando productos</p></div>';
-    return;
-  }
-  productsCache = result.products;
 
   // controls
   const controls = document.createElement('div');
   controls.className = 'actions';
 
+  // If cashier, hide "Nuevo Producto" button
   const addButtonHtml = isAdmin() ? `<button id="openFormBtn" class="btn primary">➕ Nuevo Producto</button>` : ``;
 
   controls.innerHTML = `
@@ -104,7 +169,7 @@ async function renderProductsView(){
   `;
   content.appendChild(tableWrap);
 
-  // new/edit form
+  // new/edit form (hidden by default) — only add form if ADMIN
   const formBox = document.createElement('div');
   formBox.style.marginTop = '12px';
   formBox.innerHTML = `
@@ -127,6 +192,7 @@ async function renderProductsView(){
   content.appendChild(formBox);
 
   if (isCashier()){
+    // hide form entirely
     formBox.style.display = 'none';
   }
 
@@ -150,6 +216,8 @@ async function renderProductsView(){
   content.appendChild(cartBox);
 
   // draw product rows
+  const products = loadProducts();
+  productsCache = products.slice();
   const tbody = tableWrap.querySelector('#productsTbody');
 
   function drawRows(filter=''){
@@ -161,6 +229,7 @@ async function renderProductsView(){
       return;
     }
     filtered.forEach(p=>{
+      // action buttons only for ADMIN
       let actionButtons = '';
       if (isAdmin()){
         actionButtons = `
@@ -182,6 +251,7 @@ async function renderProductsView(){
       tbody.appendChild(tr);
     });
 
+    // attach events (edit/delete only show if present)
     tbody.querySelectorAll('.edit-btn').forEach(btn => btn.onclick = ()=>{ openProductForm(Number(btn.dataset.id)); });
     tbody.querySelectorAll('.delete-btn').forEach(btn => btn.onclick = ()=>{ deleteProduct(Number(btn.dataset.id)); });
     tbody.querySelectorAll('button.add-btn').forEach(btn => {
@@ -215,43 +285,48 @@ async function renderProductsView(){
       const form = formBox.querySelector('#productFormNew');
       form.classList.add('hidden');
       editingProductId = null;
+      // reset submit handler
+      form.onsubmit = productFormSubmitHandler;
     };
   }
 
-  // form submit handler
-  async function productFormSubmitHandler(e){
+  // default submit handler (create new or update existing)
+  function productFormSubmitHandler(e){
     e.preventDefault();
     const fName = document.getElementById('fName').value.trim();
     const fPrice = parseFloat(document.getElementById('fPrice').value) || 0;
     const fCategory = document.getElementById('fCategory').value.trim() || 'General';
     const fStock = parseInt(document.getElementById('fStock').value) || 0;
 
-    let result;
+    let list = loadProducts();
     if(editingProductId === null){
       // create
-      result = await apiRequest('/api/products', {
-        method: 'POST',
-        body: JSON.stringify({ name: fName, category: fCategory, price: fPrice, stock: fStock })
-      });
+      const id = list.length ? Math.max(...list.map(x=>x.id)) + 1 : 1;
+      list.push({ id, name: fName, price: fPrice, category: fCategory, stock: fStock });
+      saveProducts(list);
+      alert('Producto agregado');
     } else {
       // update
-      result = await apiRequest(`/api/products/${editingProductId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ name: fName, category: fCategory, price: fPrice, stock: fStock })
-      });
+      const idx = list.findIndex(x => x.id === editingProductId);
+      if(idx >= 0){
+        list[idx].name = fName;
+        list[idx].price = fPrice;
+        list[idx].category = fCategory;
+        list[idx].stock = fStock;
+        saveProducts(list);
+        alert('Producto actualizado');
+      } else {
+        alert('Producto no encontrado al intentar actualizar');
+      }
     }
 
-    if (result.success) {
-      alert(result.message);
-      editingProductId = null;
-      formBox.querySelector('#productFormNew').classList.add('hidden');
-      formBox.querySelector('#productFormNew').reset();
-      renderProductsView(); // reload
-    } else {
-      alert('Error: ' + result.message);
-    }
+    editingProductId = null;
+    formBox.querySelector('#productFormNew').classList.add('hidden');
+    formBox.querySelector('#productFormNew').reset();
+    drawRows(controls.querySelector('#searchProd').value);
   }
 
+  // attach the default submit handler if exists (and only for admin)
   const productForm = formBox.querySelector('#productFormNew');
   if (productForm && isAdmin()) productForm.onsubmit = productFormSubmitHandler;
 
@@ -265,17 +340,34 @@ async function renderProductsView(){
 
   // render cart contents initially
   renderCartContents();
+
+  // apply role-specific UI tweaks
+  applyRoleRestrictionsAfterRender();
+}
+
+/* apply further restrictions after a view is rendered (disable/hide certain controls) */
+function applyRoleRestrictionsAfterRender(){
+  if (isCashier()){
+    // hide all edit/delete buttons (already not rendered), but also hide any "Add product" type controls
+    const createBtns = document.querySelectorAll('#openFormBtn');
+    createBtns.forEach(b => b.style.display = 'none');
+
+    // remove config / reports links already done in applyMenuRestrictions (run at init)
+  }
 }
 
 /* ========== OPEN FORM TO EDIT PRODUCT ========== */
-async function openProductForm(id){
+/* This function fills the form with product data and sets editingProductId */
+function openProductForm(id){
   if (!isAdmin()) { alert('No tienes permisos para editar productos'); return; }
 
-  const p = productsCache.find(x => x.id === id);
+  const list = loadProducts();
+  const p = list.find(x => x.id === id);
   if(!p) { alert('Producto no encontrado'); return; }
 
-  renderProductsView();
-  setTimeout(()=>{
+  // ensure products view is rendered and form exists
+  renderProductsView(); // this rebuilds UI and will re-create the form DOM
+  setTimeout(()=>{ // small timeout to wait for DOM to build
     const form = document.getElementById('productFormNew');
     if(!form) { alert('Formulario no disponible'); return; }
     editingProductId = id;
@@ -285,37 +377,38 @@ async function openProductForm(id){
     document.getElementById('fPrice').value = p.price;
     document.getElementById('fCategory').value = p.category || '';
     document.getElementById('fStock').value = p.stock || 0;
+
+    // ensure submit will update the correct product (productFormSubmitHandler already uses editingProductId variable)
   }, 80);
 }
 
 /* ========== DELETE PRODUCT ========== */
-async function deleteProduct(id){
+function deleteProduct(id){
   if (!isAdmin()) { alert('No tienes permisos para eliminar productos'); return; }
   if(!confirm('¿Seguro que deseas eliminar este producto?')) return;
-  
-  const result = await apiRequest(`/api/products/${id}`, { method: 'DELETE' });
-  
-  if (result.success) {
-    alert(result.message);
-    const active = Array.from(document.querySelectorAll('.menu a')).find(a => a.classList.contains('active'));
-    if(active && active.textContent.trim() === 'Productos') renderProductsView();
-  } else {
-    alert('Error: ' + result.message);
-  }
+  let list = loadProducts();
+  list = list.filter(p => p.id !== id);
+  saveProducts(list);
+  alert('Producto eliminado');
+  // if currently on Products view, re-render
+  const active = Array.from(document.querySelectorAll('.menu a')).find(a => a.classList.contains('active'));
+  if(active && active.textContent.trim() === 'Productos') renderProductsView();
 }
 
 /* ===================== CART LOGIC ===================== */
-let CART = [];
+let CART = loadCart(); // [{id,name,price,qty}]
+function persistCart(){ saveCart(CART); }
 
 function addToCart(productId, qty){
-  const p = productsCache.find(x => x.id === productId);
+  const products = loadProducts();
+  const p = products.find(x => x.id === productId);
   if(!p) { alert('Producto no encontrado'); return; }
   if(p.stock !== undefined && qty > p.stock) { alert('Cantidad mayor al stock disponible'); return; }
 
   const existing = CART.find(x => x.id === productId);
   if(existing) existing.qty += qty;
   else CART.push({ id: productId, name: p.name, price: p.price, qty });
-  
+  persistCart();
   renderCartContents();
 }
 
@@ -339,7 +432,7 @@ function renderCartContents(){
     line.style.display = 'flex'; line.style.justifyContent = 'space-between'; line.style.gap = '12px'; line.style.padding = '8px 0';
     line.innerHTML = `<div><strong>${escapeHtml(it.name)}</strong> <small style="color:var(--muted)">x ${it.qty}</small></div><div>S/ ${(it.price*it.qty).toFixed(2)}</div>`;
     const removeBtn = document.createElement('button'); removeBtn.className = 'btn'; removeBtn.textContent = '❌';
-    removeBtn.onclick = ()=> { CART.splice(idx, 1); renderCartContents(); };
+    removeBtn.onclick = ()=> { CART.splice(idx, 1); persistCart(); renderCartContents(); };
     line.appendChild(removeBtn);
     cartItemsEl.appendChild(line);
     total += it.price * it.qty;
@@ -355,47 +448,46 @@ function toggleCart(){
 }
 
 /* process checkout */
-async function processCheckout(){
+function processCheckout(){
   if(CART.length === 0) { alert('Carrito vacío'); return; }
 
-  const result = await apiRequest('/api/sales', {
-    method: 'POST',
-    body: JSON.stringify({ items: CART })
-  });
-
-  if (result.success) {
-    alert('Venta registrada. Total S/ ' + result.sale.total.toFixed(2));
-    CART = [];
-    renderCartContents();
-    const active = Array.from(document.querySelectorAll('.menu a')).find(a => a.classList.contains('active'));
-    if(active && active.textContent.trim() === 'Productos') renderProductsView();
-  } else {
-    alert('Error: ' + result.message);
+  // reduce stock
+  const prod = loadProducts();
+  for(const it of CART){
+    const p = prod.find(x => x.id === it.id);
+    if(p && p.stock !== undefined) p.stock = Math.max(0, p.stock - it.qty);
   }
+  saveProducts(prod);
+
+  // create sale record
+  const sales = loadSales();
+  const total = CART.reduce((s, it) => s + it.price * it.qty, 0);
+  const sale = { id: Date.now(), date: new Date().toISOString(), items: CART.map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.qty })), total };
+  sales.push(sale);
+  saveSales(sales);
+
+  // clear cart
+  CART = [];
+  persistCart();
+  renderCartContents();
+  alert('Venta registrada. Total S/ ' + total.toFixed(2));
+
+  // refresh product list view if active
+  const active = Array.from(document.querySelectorAll('.menu a')).find(a => a.classList.contains('active'));
+  if(active && active.textContent.trim() === 'Productos') renderProductsView();
 }
 
 /* global click handlers for cart buttons */
 document.addEventListener('click', (e) => {
-  if(e.target && e.target.id === 'clearCartBtn'){ 
-    if(!confirm('Vaciar carrito?')) return; 
-    CART = []; 
-    renderCartContents(); 
-  }
+  if(e.target && e.target.id === 'clearCartBtn'){ if(!confirm('Vaciar carrito?')) return; CART = []; persistCart(); renderCartContents(); }
   if(e.target && e.target.id === 'checkoutBtn'){ processCheckout(); }
 });
 
 /* ===================== SALES / HISTORIAL ===================== */
-async function renderSalesView(){
+function renderSalesView(){
   const content = clearMain();
-  
-  const result = await apiRequest('/api/sales');
-  if (!result.success) {
-    content.innerHTML = '<div class="panel"><p>Error cargando ventas</p></div>';
-    return;
-  }
-
   const actions = document.createElement('div'); actions.className='actions';
-  actions.innerHTML = `<button id="exportSalesBtn" class="btn">⬇ Exportar Ventas (CSV)</button>`;
+  actions.innerHTML = `<button id="exportSalesBtn" class="btn">⬇ Exportar Ventas (CSV)</button> <button id="clearSales" class="btn">🗑️ Limpiar historial</button>`;
   content.appendChild(actions);
 
   const tableWrap = document.createElement('div');
@@ -410,7 +502,7 @@ async function renderSalesView(){
   content.appendChild(tableWrap);
 
   function draw(){
-    const sales = result.sales.slice().reverse();
+    const sales = loadSales().slice().reverse();
     const tbody = tableWrap.querySelector('#salesTbody'); tbody.innerHTML='';
     if(sales.length === 0) {
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">No hay ventas</td></tr>';
@@ -419,40 +511,35 @@ async function renderSalesView(){
     sales.forEach(s=>{
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${formatDateIso(s.created_at)}</td>
-        <td>${s.items.map(i=>`${escapeHtml(i.product_name)} x${i.quantity}`).join('<br>')}</td>
+        <td>${formatDateIso(s.date)}</td>
+        <td>${s.items.map(i=>`${escapeHtml(i.name)} x${i.qty}`).join('<br>')}</td>
         <td>${Number(s.total).toFixed(2)}</td>
-        <td>${isAdmin() ? `<button class="btn" data-id="${s.id}">Eliminar</button>` : ''}</td>
+        <td><button class="btn" data-id="${s.id}">Eliminar</button></td>
       `;
       tbody.appendChild(tr);
     });
 
-    tbody.querySelectorAll('button[data-id]').forEach(btn => btn.onclick = async ()=>{ 
-      const id = Number(btn.dataset.id); 
-      if(!confirm('Eliminar venta?')) return; 
-      const delResult = await apiRequest(`/api/sales/${id}`, { method: 'DELETE' });
-      if (delResult.success) {
-        alert(delResult.message);
-        renderSalesView();
-      }
-    });
+    tbody.querySelectorAll('button[data-id]').forEach(btn => btn.onclick = ()=>{ const id = Number(btn.dataset.id); if(!confirm('Eliminar venta?')) return; const list = loadSales().filter(x => x.id !== id); saveSales(list); draw(); });
   }
 
   actions.querySelector('#exportSalesBtn').onclick = ()=> {
-    const data = result.sales;
+    const data = loadSales();
     if(data.length === 0) return alert('No hay ventas para exportar');
     const rows = []; rows.push(['id','date','items','total']);
-    for(const s of data) rows.push([s.id, s.created_at, s.items.map(it=>`${it.product_name} x${it.quantity}`).join('; '), Number(s.total).toFixed(2)]);
+    for(const s of data) rows.push([s.id, s.date, s.items.map(it=>`${it.name} x${it.qty}`).join('; '), Number(s.total).toFixed(2)]);
     const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
     downloadText(csv,'ventas.csv','text/csv');
   };
+
+  actions.querySelector('#clearSales').onclick = ()=> { if(!confirm('Borrar todo el historial de ventas?')) return; saveSales([]); draw(); };
 
   draw();
 }
 
 /* ===================== REPORTS ===================== */
-async function renderReportsView(){
-  if (!isAdmin()) {
+function renderReportsView(){
+  if (!isAdmin()) { // only admin allowed
+    clearMain();
     const c = clearMain();
     c.innerHTML = `<div class="panel"><p>No tienes permisos para ver reportes.</p></div>`;
     return;
@@ -477,34 +564,31 @@ async function renderReportsView(){
   const period = content.querySelector('#periodSelect');
   const area = content.querySelector('#reportsArea');
 
-  let currentReport = null;
+  function generate(){
+    const sales = loadSales();
+    const filt = filterByPeriod(sales, period.value);
 
-  async function generate(){
-    const result = await apiRequest(`/api/sales/reports/summary?period=${period.value}`);
-    
-    if (!result.success) {
-      area.innerHTML = '<div class="panel"><p>Error generando reporte</p></div>';
-      return;
-    }
-
-    currentReport = result.report;
-    const { totalIncome, topProducts } = result.report;
+    const totalIncome = filt.reduce((s,x)=>s + Number(x.total), 0);
+    const counts = {};
+    for(const s of filt){ for(const it of s.items){ counts[it.id] = (counts[it.id]||0) + it.qty; }}
+    const prod = loadProducts();
+    const arr = Object.keys(counts).map(id=>({ id: Number(id), name: (prod.find(p=>p.id==id)||{}).name || 'Desconocido', qty: counts[id] }));
+    arr.sort((a,b)=>b.qty-a.qty);
 
     area.innerHTML = `
       <div class="panel">
         <h3>Ingresos Totales</h3>
-        <p><strong>S/ ${Number(totalIncome).toFixed(2)}</strong></p>
+        <p><strong>S/ ${totalIncome.toFixed(2)}</strong></p>
       </div>
       <div class="panel" style="margin-top:12px">
         <h3>Productos más vendidos</h3>
-        <ol id="topList">${topProducts.slice(0,10).map(a=>`<li>${escapeHtml(a.name)} — ${a.qty} unidades</li>`).join('')}</ol>
+        <ol id="topList">${arr.slice(0,10).map(a=>`<li>${escapeHtml(a.name)} — ${a.qty} unidades</li>`).join('')}</ol>
       </div>
     `;
 
     btnExp.onclick = ()=>{
-      if (!currentReport) return;
-      const rows=[]; rows.push(['product_name','units_sold']);
-      for(const a of currentReport.topProducts) rows.push([a.name, a.qty]);
+      const rows=[]; rows.push(['product_id','product_name','units_sold']);
+      for(const a of arr) rows.push([a.id, a.name, a.qty]);
       const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
       downloadText(csv,'reporte_productos.csv','text/csv');
     };
@@ -514,19 +598,36 @@ async function renderReportsView(){
   generate();
 }
 
-/* ===================== SETTINGS ===================== */
-async function renderSettingsView(){
+function filterByPeriod(sales, period){
+  if(period === 'all') return sales;
+  const now = new Date();
+  return sales.filter(s=>{
+    const d = new Date(s.date);
+    if(period === 'today') return d.toDateString() === now.toDateString();
+    if(period === 'week'){
+      const start = new Date(now);
+      const day = (start.getDay()+6)%7;
+      start.setDate(start.getDate()-day); start.setHours(0,0,0,0);
+      const end = new Date(start); end.setDate(start.getDate()+7);
+      return d >= start && d < end;
+    }
+    if(period === 'month') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    return true;
+  });
+}
+
+/* ===================== SETTINGS (no dark mode) ===================== */
+function renderSettingsView(){
   if (!isAdmin()) {
+    clearMain();
     const c = clearMain();
     c.innerHTML = `<div class="panel"><p>No tienes permisos para ver la configuración.</p></div>`;
     return;
   }
 
   const content = clearMain();
-  
-  // Get current logo from settings
-  const logoResult = await apiRequest('/api/settings/logo');
-  const logo = logoResult.value || '/img/logo.png';
+  const settings = loadSettings();
+  const logo = settings.logo || DEFAULT_LOGO;
 
   content.innerHTML = `
     <div class="panel">
@@ -536,7 +637,7 @@ async function renderSettingsView(){
         <div style="flex:1">
           <label>Subir nuevo logo</label>
           <input type="file" id="logoFile" accept="image/*"><br>
-          <small>El logo se guarda en la base de datos (dataURL).</small>
+          <small>El logo se guarda en localStorage (dataURL).</small>
         </div>
       </div>
       <hr>
@@ -546,39 +647,26 @@ async function renderSettingsView(){
     </div>
   `;
 
-  content.querySelector('#logoFile').onchange = async function(e){
+  content.querySelector('#logoFile').onchange = function(e){
     const f = e.target.files[0];
     if(!f) return;
     const reader = new FileReader();
-    reader.onload = async ()=>{
+    reader.onload = ()=>{
       const data = reader.result;
-      const result = await apiRequest('/api/settings/logo', {
-        method: 'POST',
-        body: JSON.stringify({ value: data })
-      });
-      
-      if (result.success) {
-        document.getElementById('logoPreview').src = data;
-        alert('Logo actualizado');
-        if(sidebarLogoImg) sidebarLogoImg.src = data;
-      } else {
-        alert('Error actualizando logo');
-      }
+      const s = loadSettings(); s.logo = data; saveSettings(s);
+      document.getElementById('logoPreview').src = data;
+      alert('Logo actualizado');
+      // update sidebar logo if present
+      const sidebarLogo = document.querySelector('.logo img');
+      if(sidebarLogo) sidebarLogo.src = data;
     };
     reader.readAsDataURL(f);
   };
 
-  content.querySelector('#resetBtn').onclick = async function(){
+  content.querySelector('#resetBtn').onclick = function(){
     if(!confirm('Esto eliminará productos, ventas y ajustes. Continuar?')) return;
-    
-    const result = await apiRequest('/api/settings/reset/all', { method: 'POST' });
-    
-    if (result.success) {
-      alert(result.message);
-      location.reload();
-    } else {
-      alert('Error: ' + result.message);
-    }
+    localStorage.removeItem(LS_PRODUCTS); localStorage.removeItem(LS_SALES); localStorage.removeItem(LS_SETTINGS); localStorage.removeItem(LS_CART);
+    location.reload();
   };
 }
 
@@ -586,6 +674,7 @@ async function renderSettingsView(){
 sidebarLinks.forEach(a=>{
   a.onclick = (e)=>{
     e.preventDefault();
+    // If clicking logout handled separately
     if (a.id === 'menu-logout') return;
     sidebarLinks.forEach(x=>x.classList.remove('active'));
     a.classList.add('active');
@@ -598,16 +687,24 @@ sidebarLinks.forEach(a=>{
 });
 
 /* ===================== INITIALIZE ===================== */
-(async function init(){
-  // Load initial logo
-  if (isAdmin()) {
-    const logoResult = await apiRequest('/api/settings/logo');
-    if (logoResult.value && sidebarLogoImg) {
-      sidebarLogoImg.src = logoResult.value;
-    }
-  }
+(function init(){
+  // apply menu restrictions before anything
+  applyMenuRestrictions();
+
+  // set sidebar logo from settings if exists
+  const settings = loadSettings(); const logo = settings.logo || DEFAULT_LOGO;
+  if(sidebarLogoImg) sidebarLogoImg.src = logo;
 
   // default view
   const prodLink = document.getElementById('menu-productos');
   if(prodLink) prodLink.click(); else renderProductsView();
 })();
+
+/* Expose helpers for debugging */
+window._app = { loadProducts, saveProducts, loadSales, saveSales, loadSettings, saveSettings, loadCart, saveCart, logout };
+
+// Logout
+document.getElementById('menu-logout').addEventListener('click', () => {
+  localStorage.removeItem('sessionUser'); // elimina la sesión
+  window.location.href = 'login.html';    // vuelve al login
+});

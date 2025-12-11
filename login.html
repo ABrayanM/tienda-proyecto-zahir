@@ -88,6 +88,33 @@
       background: linear-gradient(135deg, #c084fc, #7c3aed);
     }
 
+    .social-login {
+      text-align: center;
+      margin-top: 25px;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .social-login button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 12px;
+      border: 1px solid #ddd;
+      background: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 14px;
+      transition: 0.2s;
+    }
+
+    .social-login button:hover {
+      background: #f5f5f5;
+    }
+
     .login-image {
       flex: 1;
       background: linear-gradient(135deg, #7c3aed, #c084fc);
@@ -102,14 +129,6 @@
       border-radius: 16px;
       box-shadow: 0 8px 20px rgba(0,0,0,0.1);
     }
-
-    .error-message {
-      color: #dc3545;
-      font-size: 14px;
-      text-align: center;
-      margin-bottom: 15px;
-      display: none;
-    }
   </style>
 </head>
 <body>
@@ -117,8 +136,7 @@
   <div class="login-container">
     <div class="login-form">
       <h2>INGRESO</h2>
-      <p>Ingresar a la tiendita de Esther</p>
-      <div id="errorMessage" class="error-message"></div>
+      <p>Ingresar a la tiendita de esther</p>
       <form id="loginForm">
         <label>Usuario</label>
         <input id="username" type="text" placeholder="user" required>
@@ -128,41 +146,19 @@
 
         <button type="submit">Ingresar</button>
       </form>
+
+      <!-- <div class="social-login">
+        <p>Login with Others</p>
+        <button><img src="https://img.icons8.com/color/20/google-logo.png"/> Login with Google</button>
+        <button><img src="https://img.icons8.com/color/20/facebook-new.png"/> Login with Facebook</button>
+      </div> -->
     </div>
 
     <div class="login-image">
-      <img src="/img/logo.png" alt="Logo">
+      <img src="./img/logo.png" alt="Illustration">
     </div>
   </div>
 
-  <script>
-    document.getElementById('loginForm').onsubmit = async function(e) {
-      e.preventDefault();
-      
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value.trim();
-      const errorMsg = document.getElementById('errorMessage');
-
-      try {
-        const response = await fetch('/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          window.location.href = '/';
-        } else {
-          errorMsg.textContent = data.message || 'Error al iniciar sesión';
-          errorMsg.style.display = 'block';
-        }
-      } catch (error) {
-        errorMsg.textContent = 'Error de conexión con el servidor';
-        errorMsg.style.display = 'block';
-      }
-    };
-  </script>
+  <script src="js/login.js"></script>
 </body>
 </html>
