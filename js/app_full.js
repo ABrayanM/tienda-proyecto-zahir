@@ -7,7 +7,56 @@
 // API Helper Functions
 const API_BASE = '/api';
 
+// Toast notification system
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toast-container') || createToastContainer();
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  
+  const icon = {
+    success: '✓',
+    error: '✕',
+    warning: '⚠',
+    info: 'ℹ'
+  }[type] || 'ℹ';
+  
+  toast.innerHTML = `
+    <span style="font-size:20px;font-weight:bold">${icon}</span>
+    <span style="flex:1">${escapeHtml(message)}</span>
+  `;
+  
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.animation = 'slideOut 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+function createToastContainer() {
+  const container = document.createElement('div');
+  container.id = 'toast-container';
+  container.className = 'toast-container';
+  document.body.appendChild(container);
+  return container;
+}
+
+// Loading state management
+let loadingCount = 0;
+function showLoading() {
+  loadingCount++;
+  document.body.style.cursor = 'wait';
+}
+
+function hideLoading() {
+  loadingCount = Math.max(0, loadingCount - 1);
+  if (loadingCount === 0) {
+    document.body.style.cursor = 'default';
+  }
+}
+
 async function apiCall(endpoint, options = {}) {
+  showLoading();
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
@@ -32,6 +81,8 @@ async function apiCall(endpoint, options = {}) {
   } catch (error) {
     console.error('API Error:', error);
     throw error;
+  } finally {
+    hideLoading();
   }
 }
 
@@ -75,7 +126,7 @@ async function loadProducts() {
   try {
     return await apiCall('/products');
   } catch (error) {
-    alert('Error cargando productos');
+    showToast('Error cargando productos', 'error');
     return [];
   }
 }
@@ -94,7 +145,7 @@ async function saveProduct(product) {
       });
     }
   } catch (error) {
-    alert('Error guardando producto: ' + error.message);
+    showToast('Error guardando producto: ' + error.message, 'error');
     throw error;
   }
 }
@@ -103,7 +154,7 @@ async function deleteProductAPI(id) {
   try {
     return await apiCall(`/products/${id}`, { method: 'DELETE' });
   } catch (error) {
-    alert('Error eliminando producto: ' + error.message);
+    showToast('Error eliminando producto: ' + error.message, 'error');
     throw error;
   }
 }
@@ -112,7 +163,7 @@ async function loadSales() {
   try {
     return await apiCall('/sales');
   } catch (error) {
-    alert('Error cargando ventas');
+    showToast('Error cargando ventas', 'error');
     return [];
   }
 }
@@ -124,7 +175,7 @@ async function saveSale(sale) {
       body: JSON.stringify(sale)
     });
   } catch (error) {
-    alert('Error guardando venta: ' + error.message);
+    showToast('Error guardando venta: ' + error.message, 'error');
     throw error;
   }
 }
@@ -133,7 +184,7 @@ async function deleteSaleAPI(id) {
   try {
     return await apiCall(`/sales/${id}`, { method: 'DELETE' });
   } catch (error) {
-    alert('Error eliminando venta: ' + error.message);
+    showToast('Error eliminando venta: ' + error.message, 'error');
     throw error;
   }
 }
@@ -142,7 +193,7 @@ async function clearAllSales() {
   try {
     return await apiCall('/sales', { method: 'DELETE' });
   } catch (error) {
-    alert('Error limpiando ventas: ' + error.message);
+    showToast('Error limpiando ventas: ' + error.message, 'error');
     throw error;
   }
 }
@@ -162,7 +213,7 @@ async function saveSetting(key, value) {
       body: JSON.stringify({ value })
     });
   } catch (error) {
-    alert('Error guardando configuración: ' + error.message);
+    showToast('Error guardando configuración: ' + error.message, 'error');
     throw error;
   }
 }
@@ -797,50 +848,50 @@ async function renderInventoryView(){
 
   content.innerHTML = `
     <div class="actions">
-      <button id="btnAddStock" class="btn primary">➕ Agregar Stock (IN)</button>
-      <button id="btnAdjustStock" class="btn">⚙️ Ajustar Stock (ADJUST)</button>
+      <button id="btnAddStock" class="btn success">➕ Agregar Stock</button>
+      <button id="btnAdjustStock" class="btn primary">⚙️ Ajustar Stock</button>
     </div>
 
     <!-- Filters -->
-    <div class="panel" style="margin-top:12px">
-      <h3>Filtros</h3>
-      <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <div>
+    <div class="panel">
+      <h3>🔍 Filtros de Búsqueda</h3>
+      <div class="filters">
+        <div class="filter-group">
           <label>Producto</label>
-          <select id="filterProduct" style="padding:8px;border-radius:6px;border:1px solid #ddd">
-            <option value="">Todos</option>
+          <select id="filterProduct">
+            <option value="">Todos los productos</option>
           </select>
         </div>
-        <div>
-          <label>Tipo</label>
-          <select id="filterType" style="padding:8px;border-radius:6px;border:1px solid #ddd">
-            <option value="">Todos</option>
-            <option value="IN">IN (Entrada)</option>
-            <option value="OUT">OUT (Salida)</option>
-            <option value="ADJUST">ADJUST (Ajuste)</option>
+        <div class="filter-group">
+          <label>Tipo de Movimiento</label>
+          <select id="filterType">
+            <option value="">Todos los tipos</option>
+            <option value="IN">📥 IN (Entrada)</option>
+            <option value="OUT">📤 OUT (Salida)</option>
+            <option value="ADJUST">⚙️ ADJUST (Ajuste)</option>
           </select>
         </div>
-        <div>
+        <div class="filter-group">
           <label>Desde</label>
-          <input type="date" id="filterFrom" style="padding:8px;border-radius:6px;border:1px solid #ddd">
+          <input type="date" id="filterFrom">
         </div>
-        <div>
+        <div class="filter-group">
           <label>Hasta</label>
-          <input type="date" id="filterTo" style="padding:8px;border-radius:6px;border:1px solid #ddd">
+          <input type="date" id="filterTo">
         </div>
-        <div style="align-self:flex-end">
-          <button id="btnApplyFilters" class="btn primary">Aplicar Filtros</button>
+        <div class="filter-group" style="align-self:flex-end">
+          <button id="btnApplyFilters" class="btn primary" style="width:100%">Buscar</button>
         </div>
       </div>
     </div>
 
     <!-- Movements Table -->
-    <div class="table-wrap" style="margin-top:12px">
+    <div class="table-wrap">
       <table class="table">
         <thead>
           <tr>
             <th>ID</th>
-            <th>Fecha</th>
+            <th>Fecha y Hora</th>
             <th>Producto</th>
             <th>Tipo</th>
             <th>Cantidad</th>
@@ -848,47 +899,49 @@ async function renderInventoryView(){
             <th>Usuario</th>
           </tr>
         </thead>
-        <tbody id="movementsTbody"></tbody>
+        <tbody id="movementsTbody">
+          <tr><td colspan="7" style="text-align:center;padding:40px"><div class="loading"></div> Cargando movimientos...</td></tr>
+        </tbody>
       </table>
     </div>
 
     <!-- Hidden forms -->
-    <div id="formAddStock" class="form hidden" style="margin-top:12px">
-      <h3>Agregar Stock (IN)</h3>
-      <label>Producto</label>
+    <div id="formAddStock" class="form hidden">
+      <h3>➕ Agregar Stock (IN)</h3>
+      <label>Producto *</label>
       <select id="inProductId" required>
         <option value="">Seleccione un producto...</option>
       </select>
-      <label>Cantidad</label>
-      <input id="inQty" type="number" min="1" required>
-      <label>Razón</label>
-      <input id="inReason" placeholder="Ej: Compra a proveedor">
+      <label>Cantidad *</label>
+      <input id="inQty" type="number" min="1" required placeholder="Ej: 50">
+      <label>Razón (opcional)</label>
+      <input id="inReason" placeholder="Ej: Compra a proveedor XYZ" maxlength="255">
       <div style="display:flex;gap:8px">
-        <button id="btnSaveIn" class="btn primary">Guardar</button>
-        <button id="btnCancelIn" class="btn">Cancelar</button>
+        <button id="btnSaveIn" class="btn success">💾 Guardar</button>
+        <button id="btnCancelIn" type="button" class="btn">Cancelar</button>
       </div>
     </div>
 
-    <div id="formAdjustStock" class="form hidden" style="margin-top:12px">
-      <h3>Ajustar Stock (ADJUST)</h3>
-      <label>Producto</label>
+    <div id="formAdjustStock" class="form hidden">
+      <h3>⚙️ Ajustar Stock (ADJUST)</h3>
+      <label>Producto *</label>
       <select id="adjProductId" required>
         <option value="">Seleccione un producto...</option>
       </select>
-      <label>Ajuste (positivo o negativo)</label>
-      <input id="adjQty" type="number" required placeholder="Ej: 5 o -3">
-      <label>Razón</label>
-      <input id="adjReason" placeholder="Ej: Corrección de inventario" required>
+      <label>Ajuste (positivo o negativo) *</label>
+      <input id="adjQty" type="number" required placeholder="Ej: +5 para agregar, -3 para quitar">
+      <label>Razón *</label>
+      <input id="adjReason" placeholder="Ej: Corrección de inventario por productos dañados" required maxlength="255">
       <div style="display:flex;gap:8px">
-        <button id="btnSaveAdj" class="btn primary">Guardar</button>
-        <button id="btnCancelAdj" class="btn">Cancelar</button>
+        <button id="btnSaveAdj" class="btn primary">💾 Guardar</button>
+        <button id="btnCancelAdj" type="button" class="btn">Cancelar</button>
       </div>
     </div>
   `;
 
   // Load products for dropdowns
   const products = await loadProducts();
-  const productOptions = products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  const productOptions = products.map(p => `<option value="${p.id}">${escapeHtml(p.name)} (Stock: ${p.stock})</option>`).join('');
   content.querySelector('#filterProduct').innerHTML += productOptions;
   content.querySelector('#inProductId').innerHTML += productOptions;
   content.querySelector('#adjProductId').innerHTML += productOptions;
@@ -909,10 +962,16 @@ async function renderInventoryView(){
 
   content.querySelector('#btnCancelIn').onclick = () => {
     content.querySelector('#formAddStock').classList.add('hidden');
+    content.querySelector('#inProductId').value = '';
+    content.querySelector('#inQty').value = '';
+    content.querySelector('#inReason').value = '';
   };
 
   content.querySelector('#btnCancelAdj').onclick = () => {
     content.querySelector('#formAdjustStock').classList.add('hidden');
+    content.querySelector('#adjProductId').value = '';
+    content.querySelector('#adjQty').value = '';
+    content.querySelector('#adjReason').value = '';
   };
 
   content.querySelector('#btnSaveIn').onclick = async () => {
@@ -921,23 +980,23 @@ async function renderInventoryView(){
     const reason = content.querySelector('#inReason').value;
 
     if (!product_id || !qty || qty <= 0) {
-      alert('Por favor complete todos los campos correctamente');
+      showToast('Por favor complete todos los campos correctamente', 'warning');
       return;
     }
 
     try {
-      await apiCall('/inventory/in', {
+      const result = await apiCall('/inventory/in', {
         method: 'POST',
-        body: JSON.stringify({ product_id, qty, reason })
+        body: JSON.stringify({ product_id, qty, reason: reason || 'Entrada de stock' })
       });
-      alert('Stock agregado exitosamente');
+      showToast(`Stock agregado exitosamente: +${qty} unidades`, 'success');
       content.querySelector('#formAddStock').classList.add('hidden');
       content.querySelector('#inProductId').value = '';
       content.querySelector('#inQty').value = '';
       content.querySelector('#inReason').value = '';
       await loadAndDisplayMovements(content);
     } catch (error) {
-      alert('Error agregando stock: ' + error.message);
+      showToast('Error agregando stock: ' + error.message, 'error');
     }
   };
 
@@ -947,23 +1006,23 @@ async function renderInventoryView(){
     const reason = content.querySelector('#adjReason').value;
 
     if (!product_id || qty === 0 || isNaN(qty) || !reason) {
-      alert('Por favor complete todos los campos correctamente');
+      showToast('Por favor complete todos los campos correctamente', 'warning');
       return;
     }
 
     try {
-      await apiCall('/inventory/adjust', {
+      const result = await apiCall('/inventory/adjust', {
         method: 'POST',
         body: JSON.stringify({ product_id, qty, reason })
       });
-      alert('Stock ajustado exitosamente');
+      showToast(`Stock ajustado exitosamente: ${qty > 0 ? '+' : ''}${qty} unidades`, 'success');
       content.querySelector('#formAdjustStock').classList.add('hidden');
       content.querySelector('#adjProductId').value = '';
       content.querySelector('#adjQty').value = '';
       content.querySelector('#adjReason').value = '';
       await loadAndDisplayMovements(content);
     } catch (error) {
-      alert('Error ajustando stock: ' + error.message);
+      showToast('Error ajustando stock: ' + error.message, 'error');
     }
   };
 
@@ -973,6 +1032,9 @@ async function renderInventoryView(){
 }
 
 async function loadAndDisplayMovements(content) {
+  const tbody = content.querySelector('#movementsTbody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px"><div class="loading"></div> Cargando...</td></tr>';
+  
   const filters = {};
   const product_id = content.querySelector('#filterProduct').value;
   const type = content.querySelector('#filterType').value;
@@ -991,23 +1053,36 @@ async function loadAndDisplayMovements(content) {
 
     const tbody = content.querySelector('#movementsTbody');
     if (movements.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--muted)">No hay movimientos</td></tr>';
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" class="empty-state">
+            <div style="padding:40px">
+              <div style="font-size:48px;opacity:0.3;margin-bottom:16px">📦</div>
+              <div style="color:var(--muted)">No se encontraron movimientos de inventario</div>
+              <div style="color:var(--muted);font-size:14px;margin-top:8px">Intenta ajustar los filtros de búsqueda</div>
+            </div>
+          </td>
+        </tr>`;
       return;
     }
 
-    tbody.innerHTML = movements.map(m => `
+    tbody.innerHTML = movements.map(m => {
+      const typeIcon = { IN: '📥', OUT: '📤', ADJUST: '⚙️' }[m.type] || '';
+      return `
       <tr>
-        <td>${m.id}</td>
+        <td style="font-weight:500">#${m.id}</td>
         <td>${formatDateIso(m.created_at)}</td>
-        <td>${escapeHtml(m.product_name || 'N/A')}</td>
-        <td><span class="badge badge-${m.type.toLowerCase()}">${m.type}</span></td>
-        <td>${m.qty}</td>
-        <td>${escapeHtml(m.reason || '-')}</td>
+        <td><strong>${escapeHtml(m.product_name || 'N/A')}</strong></td>
+        <td><span class="badge badge-${m.type.toLowerCase()}">${typeIcon} ${m.type}</span></td>
+        <td style="font-weight:600">${m.qty}</td>
+        <td style="max-width:300px">${escapeHtml(m.reason || '-')}</td>
         <td>${escapeHtml(m.username || 'N/A')}</td>
       </tr>
-    `).join('');
+    `}).join('');
   } catch (error) {
-    alert('Error cargando movimientos: ' + error.message);
+    showToast('Error cargando movimientos: ' + error.message, 'error');
+    const tbody = content.querySelector('#movementsTbody');
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--danger)">⚠️ Error cargando datos</td></tr>';
   }
 }
 
