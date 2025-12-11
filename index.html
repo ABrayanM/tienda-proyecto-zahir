@@ -4,24 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Tienda de Abarrotes - Admin Panel</title>
-  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <div class="app">
     <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="logo">
-        <img id="sidebarLogo" src="/img/logo.png" alt="logo">
+        <!-- uso la imagen subida -->
+        <img src="/mnt/data/3fc39e9b-4ca9-4918-8387-6a814daa9f4a.png" alt="logo">
         <h2>Abarrotes</h2>
       </div>
 
       <nav class="menu">
         <a id="menu-productos" class="active">Productos</a>
         <a id="menu-ventas">Ventas</a>
-        <% if (user && user.role === 'ADMIN') { %>
         <a id="menu-reportes">Reportes</a>
         <a id="menu-config">Configuración</a>
-        <% } %>
+        <!-- Logout -->
         <a id="menu-logout" style="margin-top:12px;color:#ffb4b4;cursor:pointer">Cerrar sesión</a>
       </nav>
 
@@ -33,19 +33,15 @@
     <!-- MAIN CONTENT -->
     <main class="main">
       <header class="topbar">
-        <h1 id="topbarTitle">Bienvenido, <%= user ? user.username.toUpperCase() : 'Usuario' %></h1>
+        <h1>Gestión de Productos</h1>
       </header>
 
       <section class="content">
-        <!-- El contenido dinámico se inyecta desde JavaScript -->
+        <!-- El contenido dinámico se inyecta desde js/app_full.js -->
       </section>
     </main>
   </div>
 
-  <script>
-    // Pass user data to frontend
-    const CURRENT_USER = <%= JSON.stringify(user) %>;
-  </script>
-  <script src="/js/app.js"></script>
+  <script src="js/app_full.js"></script>
 </body>
 </html>
