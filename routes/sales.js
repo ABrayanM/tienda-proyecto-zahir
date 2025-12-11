@@ -82,20 +82,35 @@ router.post('/', requireAuth, async (req, res) => {
 
     // Validate stock availability for all items before processing
     for (const item of items) {
-      const [products] = await connection.query(
-        'SELECT stock FROM products WHERE id = ? FOR UPDATE',
-        [item.id]
-      );
+      // Calculate current stock from movements
+      const [stockResult] = await connection.query(`
+        SELECT 
+          p.id,
+          p.name,
+          COALESCE(SUM(
+            CASE 
+              WHEN sm.movement_type = 'INGRESO' THEN sm.quantity
+              WHEN sm.movement_type = 'EGRESO' THEN -sm.quantity
+              ELSE 0
+            END
+          ), 0) as stock
+        FROM products p
+        LEFT JOIN stock_movements sm ON p.id = sm.product_id
+        WHERE p.id = ?
+        GROUP BY p.id, p.name
+        FOR UPDATE
+      `, [item.id]);
       
-      if (products.length === 0) {
+      if (stockResult.length === 0) {
         await connection.rollback();
         return res.status(400).json({ error: `Product ${item.name} not found` });
       }
       
-      if (products[0].stock < item.qty) {
+      const currentStock = stockResult[0].stock;
+      if (currentStock < item.qty) {
         await connection.rollback();
         return res.status(400).json({ 
-          error: `Insufficient stock for ${item.name}. Available: ${products[0].stock}, Requested: ${item.qty}` 
+          error: `Insufficient stock for ${item.name}. Available: ${currentStock}, Requested: ${item.qty}` 
         });
       }
     }
@@ -120,6 +135,13 @@ router.post('/', requireAuth, async (req, res) => {
       await connection.query(
         'UPDATE products SET stock = stock - ? WHERE id = ?',
         [item.qty, item.id]
+      );
+
+      // Register stock movement (EGRESO)
+      await connection.query(
+        `INSERT INTO stock_movements (product_id, movement_type, quantity, reason, reference_type, reference_id, user_id) 
+         VALUES (?, 'EGRESO', ?, 'Venta', 'sale', ?, ?)`,
+        [item.id, item.qty, saleId, req.session.user.id]
       );
     }
 
