@@ -191,12 +191,14 @@ function isCashier(){ return typeof CURRENT_USER !== 'undefined' && CURRENT_USER
 /* Oculta menú / controles según rol (ejecutar en init) */
 function applyMenuRestrictions(){
   if (isCashier()){
-    // ocultar reportes y config del sidebar
+    // ocultar reportes, config e inventario del sidebar
     const reportLink = document.getElementById('menu-reportes');
     const configLink = document.getElementById('menu-config');
+    const inventoryLink = document.getElementById('menu-inventario');
     const prodLink = document.getElementById('menu-productos');
     if(reportLink) reportLink.style.display = 'none';
     if(configLink) configLink.style.display = 'none';
+    if(inventoryLink) inventoryLink.style.display = 'none';
     // opcional: dejar ventas visible
   }
 }
@@ -312,6 +314,10 @@ async function renderProductsView(){
   productsCache = products.slice();
   const tbody = tableWrap.querySelector('#productsTbody');
 
+  // Get min_stock_alert setting
+  const settings = await loadSettings();
+  const minStockAlert = parseInt(settings.min_stock_alert || '10');
+
   function drawRows(filter=''){
     tbody.innerHTML = '';
     const q = filter.trim().toLowerCase();
@@ -330,13 +336,20 @@ async function renderProductsView(){
         `;
       }
 
+      // Low stock indicator
+      const stock = (p.stock !== undefined && p.stock !== null) ? p.stock : '';
+      const isLowStock = stock !== '' && stock <= minStockAlert;
+      const stockDisplay = stock !== '' 
+        ? `${stock} ${isLowStock ? '<span style="color:#ff6b6b;font-weight:bold" title="Stock bajo">⚠️</span>' : ''}`
+        : '';
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${actionButtons}</td>
         <td>${escapeHtml(p.name)}</td>
         <td>${escapeHtml(p.category || '')}</td>
         <td>S/ ${Number(p.price).toFixed(2)}</td>
-        <td>${(p.stock !== undefined && p.stock !== null) ? p.stock : ''}</td>
+        <td>${stockDisplay}</td>
         <td><input type="number" min="1" max="${p.stock ?? 9999}" value="1" style="width:70px;padding:6px;border-radius:6px;border:1px solid #ddd" ${p.stock==0 ? 'disabled' : ''}></td>
         <td><button class="btn add-btn" data-id="${p.id}">➕ Añadir</button></td>
       `;
@@ -769,6 +782,235 @@ async function renderSettingsView(){
   };
 }
 
+/* ===================== INVENTORY MANAGEMENT ===================== */
+async function renderInventoryView(){
+  if (!isAdmin()) {
+    clearMain();
+    const c = clearMain();
+    c.innerHTML = `<div class="panel"><p>No tienes permisos para ver el inventario.</p></div>`;
+    return;
+  }
+
+  const content = clearMain();
+  const settings = await loadSettings();
+  const minStockAlert = parseInt(settings.min_stock_alert || '10');
+
+  content.innerHTML = `
+    <div class="actions">
+      <button id="btnAddStock" class="btn primary">➕ Agregar Stock (IN)</button>
+      <button id="btnAdjustStock" class="btn">⚙️ Ajustar Stock (ADJUST)</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="panel" style="margin-top:12px">
+      <h3>Filtros</h3>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div>
+          <label>Producto</label>
+          <select id="filterProduct" style="padding:8px;border-radius:6px;border:1px solid #ddd">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select id="filterType" style="padding:8px;border-radius:6px;border:1px solid #ddd">
+            <option value="">Todos</option>
+            <option value="IN">IN (Entrada)</option>
+            <option value="OUT">OUT (Salida)</option>
+            <option value="ADJUST">ADJUST (Ajuste)</option>
+          </select>
+        </div>
+        <div>
+          <label>Desde</label>
+          <input type="date" id="filterFrom" style="padding:8px;border-radius:6px;border:1px solid #ddd">
+        </div>
+        <div>
+          <label>Hasta</label>
+          <input type="date" id="filterTo" style="padding:8px;border-radius:6px;border:1px solid #ddd">
+        </div>
+        <div style="align-self:flex-end">
+          <button id="btnApplyFilters" class="btn primary">Aplicar Filtros</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Movements Table -->
+    <div class="table-wrap" style="margin-top:12px">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Fecha</th>
+            <th>Producto</th>
+            <th>Tipo</th>
+            <th>Cantidad</th>
+            <th>Razón</th>
+            <th>Usuario</th>
+          </tr>
+        </thead>
+        <tbody id="movementsTbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Hidden forms -->
+    <div id="formAddStock" class="form hidden" style="margin-top:12px">
+      <h3>Agregar Stock (IN)</h3>
+      <label>Producto</label>
+      <select id="inProductId" required>
+        <option value="">Seleccione un producto...</option>
+      </select>
+      <label>Cantidad</label>
+      <input id="inQty" type="number" min="1" required>
+      <label>Razón</label>
+      <input id="inReason" placeholder="Ej: Compra a proveedor">
+      <div style="display:flex;gap:8px">
+        <button id="btnSaveIn" class="btn primary">Guardar</button>
+        <button id="btnCancelIn" class="btn">Cancelar</button>
+      </div>
+    </div>
+
+    <div id="formAdjustStock" class="form hidden" style="margin-top:12px">
+      <h3>Ajustar Stock (ADJUST)</h3>
+      <label>Producto</label>
+      <select id="adjProductId" required>
+        <option value="">Seleccione un producto...</option>
+      </select>
+      <label>Ajuste (positivo o negativo)</label>
+      <input id="adjQty" type="number" required placeholder="Ej: 5 o -3">
+      <label>Razón</label>
+      <input id="adjReason" placeholder="Ej: Corrección de inventario" required>
+      <div style="display:flex;gap:8px">
+        <button id="btnSaveAdj" class="btn primary">Guardar</button>
+        <button id="btnCancelAdj" class="btn">Cancelar</button>
+      </div>
+    </div>
+  `;
+
+  // Load products for dropdowns
+  const products = await loadProducts();
+  const productOptions = products.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  content.querySelector('#filterProduct').innerHTML += productOptions;
+  content.querySelector('#inProductId').innerHTML += productOptions;
+  content.querySelector('#adjProductId').innerHTML += productOptions;
+
+  // Load initial movements
+  await loadAndDisplayMovements(content);
+
+  // Button handlers
+  content.querySelector('#btnAddStock').onclick = () => {
+    content.querySelector('#formAddStock').classList.remove('hidden');
+    content.querySelector('#formAdjustStock').classList.add('hidden');
+  };
+
+  content.querySelector('#btnAdjustStock').onclick = () => {
+    content.querySelector('#formAdjustStock').classList.remove('hidden');
+    content.querySelector('#formAddStock').classList.add('hidden');
+  };
+
+  content.querySelector('#btnCancelIn').onclick = () => {
+    content.querySelector('#formAddStock').classList.add('hidden');
+  };
+
+  content.querySelector('#btnCancelAdj').onclick = () => {
+    content.querySelector('#formAdjustStock').classList.add('hidden');
+  };
+
+  content.querySelector('#btnSaveIn').onclick = async () => {
+    const product_id = content.querySelector('#inProductId').value;
+    const qty = parseInt(content.querySelector('#inQty').value);
+    const reason = content.querySelector('#inReason').value;
+
+    if (!product_id || !qty || qty <= 0) {
+      alert('Por favor complete todos los campos correctamente');
+      return;
+    }
+
+    try {
+      await apiCall('/inventory/in', {
+        method: 'POST',
+        body: JSON.stringify({ product_id, qty, reason })
+      });
+      alert('Stock agregado exitosamente');
+      content.querySelector('#formAddStock').classList.add('hidden');
+      content.querySelector('#inProductId').value = '';
+      content.querySelector('#inQty').value = '';
+      content.querySelector('#inReason').value = '';
+      await loadAndDisplayMovements(content);
+    } catch (error) {
+      alert('Error agregando stock: ' + error.message);
+    }
+  };
+
+  content.querySelector('#btnSaveAdj').onclick = async () => {
+    const product_id = content.querySelector('#adjProductId').value;
+    const qty = parseInt(content.querySelector('#adjQty').value);
+    const reason = content.querySelector('#adjReason').value;
+
+    if (!product_id || !qty || !reason) {
+      alert('Por favor complete todos los campos correctamente');
+      return;
+    }
+
+    try {
+      await apiCall('/inventory/adjust', {
+        method: 'POST',
+        body: JSON.stringify({ product_id, qty, reason })
+      });
+      alert('Stock ajustado exitosamente');
+      content.querySelector('#formAdjustStock').classList.add('hidden');
+      content.querySelector('#adjProductId').value = '';
+      content.querySelector('#adjQty').value = '';
+      content.querySelector('#adjReason').value = '';
+      await loadAndDisplayMovements(content);
+    } catch (error) {
+      alert('Error ajustando stock: ' + error.message);
+    }
+  };
+
+  content.querySelector('#btnApplyFilters').onclick = async () => {
+    await loadAndDisplayMovements(content);
+  };
+}
+
+async function loadAndDisplayMovements(content) {
+  const filters = {};
+  const product_id = content.querySelector('#filterProduct').value;
+  const type = content.querySelector('#filterType').value;
+  const from = content.querySelector('#filterFrom').value;
+  const to = content.querySelector('#filterTo').value;
+
+  if (product_id) filters.product_id = product_id;
+  if (type) filters.type = type;
+  if (from) filters.from = from;
+  if (to) filters.to = to;
+
+  try {
+    const queryString = new URLSearchParams(filters).toString();
+    const data = await apiCall(`/inventory/movements?${queryString}`);
+    const movements = data.movements || [];
+
+    const tbody = content.querySelector('#movementsTbody');
+    if (movements.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--muted)">No hay movimientos</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = movements.map(m => `
+      <tr>
+        <td>${m.id}</td>
+        <td>${formatDateIso(m.created_at)}</td>
+        <td>${escapeHtml(m.product_name || 'N/A')}</td>
+        <td><span class="badge badge-${m.type.toLowerCase()}">${m.type}</span></td>
+        <td>${m.qty}</td>
+        <td>${escapeHtml(m.reason || '-')}</td>
+        <td>${escapeHtml(m.username || 'N/A')}</td>
+      </tr>
+    `).join('');
+  } catch (error) {
+    alert('Error cargando movimientos: ' + error.message);
+  }
+}
+
 /* ===================== NAVIGATION SETUP ===================== */
 sidebarLinks.forEach(a=>{
   a.onclick = async (e)=>{
@@ -780,6 +1022,7 @@ sidebarLinks.forEach(a=>{
     const t = a.textContent.trim();
     if(t === 'Productos') await renderProductsView();
     else if(t === 'Ventas') await renderSalesView();
+    else if(t === 'Inventario') await renderInventoryView();
     else if(t === 'Reportes') await renderReportsView();
     else if(t === 'Configuración') await renderSettingsView();
   };
