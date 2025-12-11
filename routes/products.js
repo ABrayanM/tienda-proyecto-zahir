@@ -99,8 +99,8 @@ router.post('/', requireAdmin, async (req, res) => {
 
     // Insert product with stock = 0 (stock is managed through stock_movements)
     const [result] = await connection.query(
-      'INSERT INTO products (name, category, price, stock) VALUES (?, ?, ?, 0)',
-      [name, category || 'General', price]
+      'INSERT INTO products (name, category, price, stock) VALUES (?, ?, ?, ?)',
+      [name, category || 'General', price, 0]
     );
 
     const productId = result.insertId;
