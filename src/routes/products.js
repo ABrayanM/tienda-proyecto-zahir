@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { body, param, validationResult } = require('express-validator');
 const db = require('../config/db');
 
 // Middleware to check authentication
@@ -18,6 +19,27 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// Validation middleware
+const validateProduct = [
+  body('name').trim().notEmpty().withMessage('El nombre es requerido').isLength({ max: 100 }).withMessage('El nombre no puede exceder 100 caracteres'),
+  body('category').optional().trim().isLength({ max: 50 }).withMessage('La categoría no puede exceder 50 caracteres'),
+  body('price').isFloat({ min: 0 }).withMessage('El precio debe ser un número positivo'),
+  body('stock').optional().isInt({ min: 0 }).withMessage('El stock debe ser un número entero positivo')
+];
+
+const validateId = [
+  param('id').isInt({ min: 1 }).withMessage('ID inválido')
+];
+
+// Helper to handle validation errors
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: errors.array()[0].msg });
+  }
+  next();
+};
+
 // Get all products
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -30,7 +52,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // Get single product
-router.get('/:id', requireAuth, async (req, res) => {
+router.get('/:id', requireAuth, validateId, handleValidationErrors, async (req, res) => {
   try {
     const [products] = await db.query('SELECT * FROM products WHERE id = ?', [req.params.id]);
     if (products.length === 0) {
@@ -44,7 +66,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 // Create product (Admin only)
-router.post('/', requireAdmin, async (req, res) => {
+router.post('/', requireAdmin, validateProduct, handleValidationErrors, async (req, res) => {
   try {
     const { name, category, price, stock } = req.body;
     
@@ -65,7 +87,7 @@ router.post('/', requireAdmin, async (req, res) => {
 });
 
 // Update product (Admin only)
-router.put('/:id', requireAdmin, async (req, res) => {
+router.put('/:id', requireAdmin, validateId, validateProduct, handleValidationErrors, async (req, res) => {
   try {
     const { name, category, price, stock } = req.body;
     
@@ -82,7 +104,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
 });
 
 // Delete product (Admin only)
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.delete('/:id', requireAdmin, validateId, handleValidationErrors, async (req, res) => {
   try {
     await db.query('DELETE FROM products WHERE id = ?', [req.params.id]);
     res.json({ success: true, message: 'Producto eliminado' });

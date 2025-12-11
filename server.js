@@ -1,10 +1,42 @@
 const express = require('express');
 const session = require('express-session');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Security middleware - helmet for HTTP headers security
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"]
+    }
+  }
+}));
+
+// Rate limiting for authentication routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: 'Demasiados intentos de inicio de sesión, por favor intente más tarde',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// General API rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Middleware
 app.use(express.json());
@@ -38,10 +70,11 @@ const productRoutes = require('./src/routes/products');
 const salesRoutes = require('./src/routes/sales');
 const settingsRoutes = require('./src/routes/settings');
 
-app.use('/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/sales', salesRoutes);
-app.use('/api/settings', settingsRoutes);
+// Apply rate limiters
+app.use('/auth', authLimiter, authRoutes);
+app.use('/api/products', apiLimiter, productRoutes);
+app.use('/api/sales', apiLimiter, salesRoutes);
+app.use('/api/settings', apiLimiter, settingsRoutes);
 
 // Main routes
 app.get('/', (req, res) => {
