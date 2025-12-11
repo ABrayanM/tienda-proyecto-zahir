@@ -946,7 +946,7 @@ async function renderInventoryView(){
     const qty = parseInt(content.querySelector('#adjQty').value);
     const reason = content.querySelector('#adjReason').value;
 
-    if (!product_id || !qty || !reason) {
+    if (!product_id || qty === 0 || isNaN(qty) || !reason) {
       alert('Por favor complete todos los campos correctamente');
       return;
     }

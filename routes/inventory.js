@@ -89,7 +89,7 @@ router.post('/adjust', requireAdmin, async (req, res) => {
     const { product_id, qty, reason } = req.body;
 
     // Validate input
-    if (!product_id || qty === undefined || qty === 0) {
+    if (!product_id || qty === undefined || qty === null || qty === 0) {
       await connection.rollback();
       return res.status(400).json({ error: 'Product ID and non-zero quantity are required' });
     }
@@ -122,11 +122,11 @@ router.post('/adjust', requireAdmin, async (req, res) => {
       [newStock, product_id]
     );
 
-    // Insert inventory movement with absolute qty and descriptive reason
+    // Insert inventory movement - store the actual qty with sign to preserve direction
     const adjustmentReason = reason || (qty > 0 ? 'Stock increase adjustment' : 'Stock decrease adjustment');
     const [movementResult] = await connection.query(
       'INSERT INTO inventory_movements (product_id, type, qty, reason, user_id) VALUES (?, ?, ?, ?, ?)',
-      [product_id, 'ADJUST', Math.abs(qty), adjustmentReason, req.session.user.id]
+      [product_id, 'ADJUST', Math.abs(qty), `${adjustmentReason} (${qty > 0 ? '+' : ''}${qty})`, req.session.user.id]
     );
 
     await connection.commit();
