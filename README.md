@@ -7,8 +7,14 @@ Sistema de gestión para tienda de abarrotes con MySQL como base de datos backen
 - **Autenticación de usuarios** con roles (ADMIN / CAJERO)
 - **Gestión de productos** (CRUD completo)
 - **Sistema de ventas** con carrito de compras
+- **Gestión de inventario profesional** con auditoría completa
+  - Registro automático de movimientos de stock en cada venta
+  - Entradas de stock (IN) para compras a proveedores
+  - Ajustes de inventario (ADJUST) positivos o negativos
+  - Historial completo con filtros por producto, tipo y fechas
+  - Indicadores visuales de stock bajo
 - **Reportes** de ventas e ingresos
-- **Configuración** personalizable (logo, etc.)
+- **Configuración** personalizable (logo, alertas de stock, etc.)
 - **Base de datos MySQL** para almacenamiento persistente
 
 ## 🚀 Requisitos Previos
@@ -104,6 +110,7 @@ Después de inicializar la base de datos, puedes acceder con:
 - **sales**: Registro de ventas realizadas
 - **sale_items**: Detalles de items en cada venta
 - **settings**: Configuraciones del sistema
+- **inventory_movements**: Auditoría completa de movimientos de inventario (entradas, salidas, ajustes)
 
 ## 🔌 API Endpoints
 
@@ -129,6 +136,12 @@ Después de inicializar la base de datos, puedes acceder con:
 - `DELETE /api/sales/:id` - Eliminar venta (ADMIN)
 - `DELETE /api/sales` - Limpiar historial (ADMIN)
 
+### Inventario
+
+- `POST /api/inventory/in` - Agregar stock (ADMIN)
+- `POST /api/inventory/adjust` - Ajustar stock positivo/negativo (ADMIN)
+- `GET /api/inventory/movements` - Listar movimientos con filtros (ADMIN)
+
 ### Configuración
 
 - `GET /api/settings` - Obtener todas las configuraciones
@@ -140,6 +153,8 @@ Después de inicializar la base de datos, puedes acceder con:
 ### ADMIN
 - Acceso completo a todas las funciones
 - Puede crear, editar y eliminar productos
+- Puede gestionar inventario (entradas, ajustes)
+- Puede ver historial de movimientos de inventario
 - Puede ver reportes
 - Puede modificar configuraciones
 - Puede realizar y ver ventas
@@ -148,6 +163,7 @@ Después de inicializar la base de datos, puedes acceder con:
 - Puede realizar ventas
 - Puede ver productos
 - No puede modificar productos
+- No puede acceder a gestión de inventario
 - No puede acceder a reportes
 - No puede modificar configuraciones
 
@@ -244,6 +260,12 @@ Este proyecto fue migrado desde una versión que usaba LocalStorage a una arquit
 - El carrito de compras se almacena localmente por rendimiento
 - Las imágenes del logo se guardan como base64 en la BD
 - Se utiliza bcrypt para hashear contraseñas (10 rounds)
+- **Sistema de inventario:**
+  - Cada venta crea automáticamente movimientos OUT en el historial de inventario
+  - Los ajustes de inventario requieren permisos de ADMIN
+  - El sistema muestra alertas visuales cuando el stock está bajo (configurable)
+  - Todas las operaciones de inventario incluyen SELECT ... FOR UPDATE para prevenir condiciones de carrera
+  - Los movimientos de inventario quedan permanentemente registrados con información de usuario y fecha
 
 ## 📄 Licencia
 

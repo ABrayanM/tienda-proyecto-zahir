@@ -333,6 +333,132 @@ Delete a setting. **Requires ADMIN role.**
 }
 ```
 
+## Inventory
+
+### POST /inventory/in
+
+Add stock to a product (stock increase). **Requires ADMIN role.**
+
+**Request Body:**
+```json
+{
+  "product_id": 1,
+  "qty": 50,
+  "reason": "Compra a proveedor"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "movement_id": 1,
+  "product": {
+    "id": 1,
+    "name": "Arroz 1kg",
+    "category": "Granos",
+    "price": 9.50,
+    "stock": 100,
+    "created_at": "2025-01-01T00:00:00.000Z",
+    "updated_at": "2025-01-01T12:00:00.000Z"
+  }
+}
+```
+
+### POST /inventory/adjust
+
+Adjust product stock (can be positive or negative). **Requires ADMIN role.**
+
+**Request Body:**
+```json
+{
+  "product_id": 1,
+  "qty": -5,
+  "reason": "Corrección de inventario - productos dañados"
+}
+```
+
+**Note:** The `qty` parameter can be:
+- Positive: to increase stock
+- Negative: to decrease stock
+- Must not result in negative stock (will return error if it would)
+
+**Response:**
+```json
+{
+  "success": true,
+  "movement_id": 2,
+  "adjustment": -5,
+  "product": {
+    "id": 1,
+    "name": "Arroz 1kg",
+    "category": "Granos",
+    "price": 9.50,
+    "stock": 95,
+    "created_at": "2025-01-01T00:00:00.000Z",
+    "updated_at": "2025-01-01T12:30:00.000Z"
+  }
+}
+```
+
+### GET /inventory/movements
+
+Get inventory movements with optional filters. **Requires ADMIN role.**
+
+**Query Parameters (all optional):**
+- `product_id` - Filter by product ID
+- `type` - Filter by movement type (IN, OUT, ADJUST)
+- `from` - Filter by date from (ISO format: YYYY-MM-DD)
+- `to` - Filter by date to (ISO format: YYYY-MM-DD)
+- `page` - Page number for pagination (default: 1)
+- `limit` - Items per page (default: 50)
+
+**Example:**
+```
+GET /inventory/movements?product_id=1&type=OUT&from=2025-01-01&to=2025-01-31&page=1&limit=20
+```
+
+**Response:**
+```json
+{
+  "movements": [
+    {
+      "id": 1,
+      "product_id": 1,
+      "product_name": "Arroz 1kg",
+      "type": "OUT",
+      "qty": 2,
+      "reason": "SALE",
+      "user_id": 1,
+      "username": "zahir",
+      "created_at": "2025-01-01T10:30:00.000Z"
+    },
+    {
+      "id": 2,
+      "product_id": 1,
+      "product_name": "Arroz 1kg",
+      "type": "IN",
+      "qty": 50,
+      "reason": "Compra a proveedor",
+      "user_id": 1,
+      "username": "zahir",
+      "created_at": "2025-01-01T08:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 2,
+    "totalPages": 1
+  }
+}
+```
+
+**Movement Types:**
+- `IN` - Stock added (e.g., purchase from supplier)
+- `OUT` - Stock removed (e.g., sale to customer)
+- `ADJUST` - Stock adjustment (e.g., inventory correction, damaged goods)
+
 ## Error Responses
 
 All endpoints may return these error responses:
@@ -343,6 +469,11 @@ All endpoints may return these error responses:
   "error": "Descriptive error message"
 }
 ```
+
+Examples:
+- Invalid quantity for inventory operations
+- Insufficient stock for adjustments
+- Missing required fields
 
 ### 401 Unauthorized
 ```json
@@ -380,3 +511,9 @@ All endpoints may return these error responses:
 - Passwords are hashed using bcrypt
 - Product stock is automatically updated when a sale is created
 - Sale items reference products but store the product name to preserve history even if the product is deleted
+- **Inventory Management:**
+  - Every sale automatically creates an OUT movement for audit purposes
+  - Stock additions (IN) and adjustments (ADJUST) are ADMIN-only operations
+  - All inventory movements are permanently recorded with user information
+  - Movements can be filtered by product, type, and date range
+  - Stock adjustments can be positive or negative but cannot result in negative inventory
