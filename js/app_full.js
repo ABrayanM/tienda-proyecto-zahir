@@ -836,7 +836,6 @@ async function renderSettingsView(){
 /* ===================== INVENTORY MANAGEMENT ===================== */
 async function renderInventoryView(){
   if (!isAdmin()) {
-    clearMain();
     const c = clearMain();
     c.innerHTML = `<div class="panel"><p>No tienes permisos para ver el inventario.</p></div>`;
     return;
@@ -1053,7 +1052,6 @@ async function loadAndDisplayMovements(content) {
     const data = await apiCall(`/inventory/movements?${queryString}`);
     const movements = data.movements || [];
 
-    const tbody = content.querySelector('#movementsTbody');
     if (movements.length === 0) {
       tbody.innerHTML = `
         <tr>

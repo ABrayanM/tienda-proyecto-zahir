@@ -144,6 +144,8 @@ router.post('/adjust', requireAdmin, async (req, res) => {
     );
 
     // Insert inventory movement - store the actual qty with sign to preserve direction
+    // Note: qty column is UNSIGNED INT, so we store Math.abs(qty) and preserve
+    // direction in the reason field (e.g., "+5" or "-3") for audit purposes
     const adjustmentReason = `${reason} (${qty > 0 ? '+' : ''}${qty})`;
     const [movementResult] = await connection.query(
       'INSERT INTO inventory_movements (product_id, type, qty, reason, user_id) VALUES (?, ?, ?, ?, ?)',
