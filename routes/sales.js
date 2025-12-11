@@ -148,6 +148,9 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 // Delete sale (admin only)
+// NOTE: Deleting sales does not restore stock or create compensating inventory movements.
+// This preserves the audit trail - the physical stock movement occurred at the time of sale.
+// Consider implementing a "void sale" feature instead if stock restoration is needed.
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;

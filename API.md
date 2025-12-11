@@ -256,6 +256,8 @@ Create a new sale (process checkout). Automatically updates product stock.
 
 Delete a sale. **Requires ADMIN role.**
 
+**Note:** Deleting a sale does not restore product stock or create compensating inventory movements. The original OUT movements remain in the audit log to preserve the complete history. If stock restoration is needed, consider using the inventory adjustment feature instead.
+
 **Response:**
 ```json
 {
