@@ -118,10 +118,10 @@ async function initDatabase() {
     `);
     console.log('✅ Seed products inserted');
 
-    // Insert default logo setting
+    // Insert default logo setting (using relative path)
     await connection.query(`
       INSERT INTO settings (setting_key, setting_value) VALUES
-      ('logo', '/mnt/data/3fc39e9b-4ca9-4918-8387-6a814daa9f4a.png')
+      ('logo', './img/logo.png')
       ON DUPLICATE KEY UPDATE setting_key=setting_key
     `);
     console.log('✅ Default settings inserted');

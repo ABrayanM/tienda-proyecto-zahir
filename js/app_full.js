@@ -57,7 +57,7 @@ if (!sessionUser) {
 
 /* ===================== CONFIG ===================== */
 const LS_CART = 'cart_temp_v1'; // Cart still in LocalStorage for performance
-const DEFAULT_LOGO = '/mnt/data/3fc39e9b-4ca9-4918-8387-6a814daa9f4a.png';
+const DEFAULT_LOGO = './img/logo.png';
 
 /* ===================== DOM ===================== */
 const sidebarLinks = document.querySelectorAll('.menu a');
@@ -177,6 +177,7 @@ function escapeHtml(s) {
 }
 function formatDateIso(iso){ const d=new Date(iso); return d.toLocaleString(); }
 function downloadText(text, filename, type='text/plain'){ const blob=new Blob([text],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
+function getProductName(item){ return item.product_name || item.name || 'Desconocido'; }
 
 /* ===================== UI HELPERS ===================== */
 function clearMain(){
@@ -598,7 +599,7 @@ async function renderSalesView(){
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${formatDateIso(s.date)}</td>
-        <td>${s.items.map(i=>`${escapeHtml(i.product_name || i.name)} x${i.qty}`).join('<br>')}</td>
+        <td>${s.items.map(i=>`${escapeHtml(getProductName(i))} x${i.qty}`).join('<br>')}</td>
         <td>${Number(s.total).toFixed(2)}</td>
         <td><button class="btn" data-id="${s.id}">Eliminar</button></td>
       `;
@@ -621,7 +622,7 @@ async function renderSalesView(){
     const data = await loadSales();
     if(data.length === 0) return alert('No hay ventas para exportar');
     const rows = []; rows.push(['id','date','items','total']);
-    for(const s of data) rows.push([s.id, s.date, s.items.map(it=>`${it.product_name || it.name} x${it.qty}`).join('; '), Number(s.total).toFixed(2)]);
+    for(const s of data) rows.push([s.id, s.date, s.items.map(it=>`${getProductName(it)} x${it.qty}`).join('; '), Number(s.total).toFixed(2)]);
     const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
     downloadText(csv,'ventas.csv','text/csv');
   };
@@ -676,7 +677,7 @@ async function renderReportsView(){
     for(const s of filt){ 
       for(const it of s.items){ 
         const itemId = it.product_id || it.id;
-        const itemName = it.product_name || it.name;
+        const itemName = getProductName(it);
         counts[itemId] = {
           id: itemId,
           name: itemName,

@@ -22,8 +22,15 @@ app.use(express.json({ limit: '10mb' })); // Increased for base64 images
 app.use(express.urlencoded({ extended: true }));
 
 // Session configuration
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  console.warn('⚠️  WARNING: SESSION_SECRET not set in environment variables!');
+  console.warn('    Using a random secret for this session (not suitable for production)');
+  console.warn('    Please set SESSION_SECRET in your .env file');
+}
+
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your_secret_key_change_in_production',
+  secret: sessionSecret || require('crypto').randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
   cookie: {
