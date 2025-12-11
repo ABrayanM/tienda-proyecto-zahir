@@ -655,12 +655,12 @@ async function renderStockView(){
     content.appendChild(formBox);
   }
   
-  // Load products for filters and form
-  const products = await loadProducts();
-  
+  // Load products for filters and form (only if admin needs them)
   if (isAdmin()) {
+    const products = await loadProducts();
     const filterProduct = document.getElementById('filterProduct');
     const smProduct = document.getElementById('smProduct');
+    
     products.forEach(p => {
       if (filterProduct) {
         const opt = document.createElement('option');

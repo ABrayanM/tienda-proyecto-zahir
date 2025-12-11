@@ -136,7 +136,7 @@ router.post('/', requireAdmin, async (req, res) => {
 
     // Check if product exists
     const [products] = await connection.query(
-      'SELECT id, stock FROM products WHERE id = ?',
+      'SELECT id FROM products WHERE id = ?',
       [product_id]
     );
 
@@ -175,7 +175,9 @@ router.post('/', requireAdmin, async (req, res) => {
       [product_id, movement_type, quantity, reason || 'Manual adjustment', req.session.user.id]
     );
 
-    // Update product stock field for consistency
+    // Update product stock field for denormalized performance optimization
+    // This maintains both source of truth (movements) and cached value (products.stock)
+    // Both updates are in same transaction to ensure consistency
     const stockChange = movement_type === 'INGRESO' ? quantity : -quantity;
     await connection.query(
       'UPDATE products SET stock = stock + ? WHERE id = ?',
