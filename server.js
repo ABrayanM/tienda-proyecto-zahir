@@ -2,6 +2,8 @@ const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
 const path = require('path');
+const cookieParser = require('cookie-parser');
+const csrf = require('csurf');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
@@ -20,6 +22,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' })); // Increased for base64 images
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Session configuration
 const sessionSecret = process.env.SESSION_SECRET;
@@ -39,6 +42,18 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 }));
+
+// CSRF protection (disabled for development, enable in production)
+// Note: When enabled, frontend must include CSRF token in requests
+const csrfProtection = csrf({ cookie: true });
+if (process.env.NODE_ENV === 'production') {
+  app.use(csrfProtection);
+}
+
+// CSRF token endpoint (for frontend to get token)
+app.get('/api/csrf-token', csrfProtection, (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
 
 // Serve static files (frontend)
 app.use(express.static(path.join(__dirname)));

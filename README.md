@@ -135,7 +135,7 @@ Después de inicializar la base de datos, puedes acceder con:
 - `GET /api/settings/:key` - Obtener una configuración
 - `PUT /api/settings/:key` - Actualizar configuración (ADMIN)
 
-## 🔒 Roles y Permisos
+## 🔒 Roles and Permisos
 
 ### ADMIN
 - Acceso completo a todas las funciones
@@ -150,6 +150,19 @@ Después de inicializar la base de datos, puedes acceder con:
 - No puede modificar productos
 - No puede acceder a reportes
 - No puede modificar configuraciones
+
+## 🛡️ Seguridad
+
+Para consideraciones de seguridad y mejores prácticas, consulta [SECURITY.md](SECURITY.md).
+
+Características de seguridad implementadas:
+- Contraseñas hasheadas con bcrypt
+- Sesiones seguras con express-session
+- Protección contra inyección SQL
+- Control de acceso basado en roles (RBAC)
+- Protección CSRF (activada en producción)
+
+**Nota**: Para uso en producción, consulta las recomendaciones adicionales en SECURITY.md.
 
 ## 📁 Estructura del Proyecto
 
