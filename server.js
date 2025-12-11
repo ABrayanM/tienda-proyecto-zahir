@@ -3,6 +3,7 @@ const session = require('express-session');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const { initCsrfToken, csrfProtection } = require('./src/middleware/csrf');
 require('dotenv').config();
 
 const app = express();
@@ -49,8 +50,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: { 
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 horas
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    httpOnly: true, // Prevent XSS attacks
+    maxAge: 24 * 60 * 60 * 1000, // 24 horas
+    sameSite: 'strict' // CSRF protection via SameSite
   }
 }));
 
@@ -64,17 +67,20 @@ app.use((req, res, next) => {
   next();
 });
 
+// Initialize CSRF token for all requests
+app.use(initCsrfToken);
+
 // Routes
 const authRoutes = require('./src/routes/auth');
 const productRoutes = require('./src/routes/products');
 const salesRoutes = require('./src/routes/sales');
 const settingsRoutes = require('./src/routes/settings');
 
-// Apply rate limiters
+// Apply rate limiters and CSRF protection
 app.use('/auth', authLimiter, authRoutes);
-app.use('/api/products', apiLimiter, productRoutes);
-app.use('/api/sales', apiLimiter, salesRoutes);
-app.use('/api/settings', apiLimiter, settingsRoutes);
+app.use('/api/products', apiLimiter, csrfProtection, productRoutes);
+app.use('/api/sales', apiLimiter, csrfProtection, salesRoutes);
+app.use('/api/settings', apiLimiter, csrfProtection, settingsRoutes);
 
 // Main routes
 app.get('/', (req, res) => {
