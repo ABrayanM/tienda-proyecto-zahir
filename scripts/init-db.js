@@ -37,6 +37,7 @@ async function initDatabase() {
     console.log('✅ Table "users" created');
 
     // Create products table
+    // Note: stock field is kept but will be calculated from stock_movements
     await connection.query(`
       CREATE TABLE IF NOT EXISTS products (
         id INT PRIMARY KEY AUTO_INCREMENT,
@@ -89,6 +90,27 @@ async function initDatabase() {
     `);
     console.log('✅ Table "settings" created');
 
+    // Create stock_movements table
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        product_id INT NOT NULL,
+        movement_type ENUM('INGRESO', 'EGRESO') NOT NULL,
+        quantity INT NOT NULL,
+        reason VARCHAR(255),
+        reference_type VARCHAR(50),
+        reference_id INT,
+        user_id INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+        INDEX idx_product_id (product_id),
+        INDEX idx_movement_type (movement_type),
+        INDEX idx_created_at (created_at)
+      )
+    `);
+    console.log('✅ Table "stock_movements" created');
+
     // Insert default users
     // NOTE: Default passwords are intentionally simple for initial setup
     // IMPORTANT: Change these passwords after first login in production!
@@ -120,6 +142,21 @@ async function initDatabase() {
       ON DUPLICATE KEY UPDATE name=name
     `);
     console.log('✅ Seed products inserted');
+
+    // Insert initial stock movements for seed products
+    await connection.query(`
+      INSERT INTO stock_movements (product_id, movement_type, quantity, reason, user_id) VALUES
+      (1, 'INGRESO', 50, 'Inventario inicial', 1),
+      (2, 'INGRESO', 40, 'Inventario inicial', 1),
+      (3, 'INGRESO', 30, 'Inventario inicial', 1),
+      (4, 'INGRESO', 60, 'Inventario inicial', 1),
+      (5, 'INGRESO', 80, 'Inventario inicial', 1),
+      (6, 'INGRESO', 15, 'Inventario inicial', 1),
+      (7, 'INGRESO', 100, 'Inventario inicial', 1),
+      (8, 'INGRESO', 25, 'Inventario inicial', 1)
+      ON DUPLICATE KEY UPDATE product_id=product_id
+    `);
+    console.log('✅ Initial stock movements inserted');
 
     // Insert default logo setting (using relative path)
     await connection.query(`

@@ -6,10 +6,12 @@ Sistema de gestión para tienda de abarrotes con MySQL como base de datos backen
 
 - **Autenticación de usuarios** con roles (ADMIN / CAJERO)
 - **Gestión de productos** (CRUD completo)
+- **Gestión de stock** con registro de movimientos (ingresos y egresos)
 - **Sistema de ventas** con carrito de compras
 - **Reportes** de ventas e ingresos
 - **Configuración** personalizable (logo, etc.)
 - **Base de datos MySQL** para almacenamiento persistente
+- **Auditoría completa** de movimientos de inventario
 
 ## 🚀 Requisitos Previos
 
@@ -101,6 +103,7 @@ Después de inicializar la base de datos, puedes acceder con:
 
 - **users**: Usuarios del sistema con autenticación
 - **products**: Catálogo de productos
+- **stock_movements**: Registro de movimientos de stock (ingresos y egresos)
 - **sales**: Registro de ventas realizadas
 - **sale_items**: Detalles de items en cada venta
 - **settings**: Configuraciones del sistema
@@ -115,11 +118,19 @@ Después de inicializar la base de datos, puedes acceder con:
 
 ### Productos
 
-- `GET /api/products` - Listar todos los productos
+- `GET /api/products` - Listar todos los productos (stock calculado desde movimientos)
 - `GET /api/products/:id` - Obtener un producto
 - `POST /api/products` - Crear producto (ADMIN)
-- `PUT /api/products/:id` - Actualizar producto (ADMIN)
+- `PUT /api/products/:id` - Actualizar producto (ADMIN, solo nombre/categoría/precio)
 - `DELETE /api/products/:id` - Eliminar producto (ADMIN)
+
+### Gestión de Stock
+
+- `GET /api/stock-movements` - Listar movimientos de stock con filtros
+- `GET /api/stock-movements/product/:productId` - Movimientos de un producto
+- `GET /api/stock-movements/current-stock` - Stock actual de todos los productos
+- `GET /api/stock-movements/summary` - Resumen estadístico de stock
+- `POST /api/stock-movements` - Registrar movimiento manual (ADMIN)
 
 ### Ventas
 
@@ -140,14 +151,17 @@ Después de inicializar la base de datos, puedes acceder con:
 ### ADMIN
 - Acceso completo a todas las funciones
 - Puede crear, editar y eliminar productos
+- Puede gestionar stock (registrar ingresos y egresos)
+- Puede ver movimientos de stock y auditoría
 - Puede ver reportes
 - Puede modificar configuraciones
 - Puede realizar y ver ventas
 
 ### CAJERO
 - Puede realizar ventas
-- Puede ver productos
+- Puede ver productos (solo lectura)
 - No puede modificar productos
+- No puede gestionar stock
 - No puede acceder a reportes
 - No puede modificar configuraciones
 
@@ -173,6 +187,7 @@ tienda-proyecto-zahir/
 ├── routes/
 │   ├── auth.js              # Rutas de autenticación
 │   ├── products.js          # Rutas de productos
+│   ├── stock-movements.js   # Rutas de gestión de stock
 │   ├── sales.js             # Rutas de ventas
 │   └── settings.js          # Rutas de configuración
 ├── scripts/
@@ -209,6 +224,18 @@ tienda-proyecto-zahir/
 - **JavaScript** (Vanilla) - Lógica del cliente
 - **Fetch API** - Comunicación con el backend
 
+## 🔄 Sistema de Gestión de Stock
+
+Este proyecto implementa un sistema avanzado de gestión de inventario:
+
+- ✅ Todos los movimientos de stock se registran en la tabla `stock_movements`
+- ✅ Cada movimiento incluye: tipo (INGRESO/EGRESO), cantidad, motivo, usuario y fecha
+- ✅ El stock actual se calcula dinámicamente desde los movimientos
+- ✅ Las ventas crean automáticamente movimientos de tipo EGRESO
+- ✅ Los administradores pueden registrar ingresos manualmente (compras, ajustes)
+- ✅ Se mantiene una auditoría completa de todos los cambios de inventario
+- ✅ Validación automática de stock disponible antes de ventas
+
 ## 🔄 Migración desde LocalStorage
 
 Este proyecto fue migrado desde una versión que usaba LocalStorage a una arquitectura con base de datos MySQL:
@@ -244,6 +271,9 @@ Este proyecto fue migrado desde una versión que usaba LocalStorage a una arquit
 - El carrito de compras se almacena localmente por rendimiento
 - Las imágenes del logo se guardan como base64 en la BD
 - Se utiliza bcrypt para hashear contraseñas (10 rounds)
+- El stock se calcula dinámicamente desde la tabla stock_movements
+- Cada venta registra automáticamente movimientos de tipo EGRESO
+- Los movimientos de stock incluyen referencias para trazabilidad completa
 
 ## 📄 Licencia
 

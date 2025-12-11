@@ -191,13 +191,15 @@ function isCashier(){ return typeof CURRENT_USER !== 'undefined' && CURRENT_USER
 /* Oculta menú / controles según rol (ejecutar en init) */
 function applyMenuRestrictions(){
   if (isCashier()){
-    // ocultar reportes y config del sidebar
+    // ocultar stock, reportes y config del sidebar para cajeros
+    const stockLink = document.getElementById('menu-stock');
     const reportLink = document.getElementById('menu-reportes');
     const configLink = document.getElementById('menu-config');
     const prodLink = document.getElementById('menu-productos');
+    if(stockLink) stockLink.style.display = 'none';
     if(reportLink) reportLink.style.display = 'none';
     if(configLink) configLink.style.display = 'none';
-    // opcional: dejar ventas visible
+    // ventas visible para cajeros
   }
 }
 
@@ -569,6 +571,246 @@ document.addEventListener('click', (e) => {
   if(e.target && e.target.id === 'checkoutBtn'){ processCheckout(); }
 });
 
+/* ===================== STOCK MANAGEMENT ===================== */
+async function renderStockView(){
+  const content = clearMain();
+  topbarTitle.textContent = 'Gestión de Stock';
+  
+  // Only admins can add stock movements
+  const controlsHtml = isAdmin() ? `
+    <div class="actions">
+      <button id="openStockFormBtn" class="btn primary">➕ Registrar Movimiento</button>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <select id="filterType" style="padding:8px;border-radius:6px;border:1px solid #ddd">
+          <option value="">Todos</option>
+          <option value="INGRESO">Ingresos</option>
+          <option value="EGRESO">Egresos</option>
+        </select>
+        <select id="filterProduct" style="padding:8px;border-radius:6px;border:1px solid #ddd">
+          <option value="">Todos los productos</option>
+        </select>
+      </div>
+    </div>
+  ` : `<div class="actions"><p>Vista de solo lectura para cajeros</p></div>`;
+  
+  content.innerHTML = controlsHtml;
+  
+  // Stock summary
+  const summaryBox = document.createElement('div');
+  summaryBox.className = 'panel';
+  summaryBox.style.marginTop = '12px';
+  summaryBox.innerHTML = `
+    <h3>Resumen de Stock</h3>
+    <div id="stockSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px"></div>
+  `;
+  content.appendChild(summaryBox);
+  
+  // Stock movements table
+  const tableWrap = document.createElement('div');
+  tableWrap.style.marginTop = '12px';
+  tableWrap.innerHTML = `
+    <h3>Historial de Movimientos</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Producto</th>
+          <th>Tipo</th>
+          <th>Cantidad</th>
+          <th>Motivo</th>
+          <th>Usuario</th>
+        </tr>
+      </thead>
+      <tbody id="stockMovementsTbody"></tbody>
+    </table>
+  `;
+  content.appendChild(tableWrap);
+  
+  // Form for adding stock movements (only for admins)
+  if (isAdmin()) {
+    const formBox = document.createElement('div');
+    formBox.style.marginTop = '12px';
+    formBox.innerHTML = `
+      <form id="stockMovementForm" class="form hidden">
+        <h3>Registrar Movimiento de Stock</h3>
+        <label>Producto</label>
+        <select id="smProduct" required>
+          <option value="">Seleccione un producto</option>
+        </select>
+        <label>Tipo de Movimiento</label>
+        <select id="smType" required>
+          <option value="INGRESO">Ingreso</option>
+          <option value="EGRESO">Egreso</option>
+        </select>
+        <label>Cantidad</label>
+        <input id="smQuantity" type="number" min="1" required>
+        <label>Motivo</label>
+        <input id="smReason" placeholder="Ej: Compra a proveedor, Ajuste de inventario, etc.">
+        <div style="display:flex;gap:8px">
+          <button class="btn primary" type="submit">Registrar</button>
+          <button type="button" id="cancelStockForm" class="btn">Cancelar</button>
+        </div>
+      </form>
+    `;
+    content.appendChild(formBox);
+  }
+  
+  // Load products for filters and form (only if admin needs them)
+  if (isAdmin()) {
+    const products = await loadProducts();
+    const filterProduct = document.getElementById('filterProduct');
+    const smProduct = document.getElementById('smProduct');
+    
+    products.forEach(p => {
+      if (filterProduct) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        filterProduct.appendChild(opt);
+      }
+      if (smProduct) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        smProduct.appendChild(opt);
+      }
+    });
+  }
+  
+  async function loadStockSummary() {
+    try {
+      const summary = await apiCall('/stock-movements/summary');
+      const summaryDiv = document.getElementById('stockSummary');
+      summaryDiv.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-value">${summary.total_ingresos || 0}</div>
+          <div class="stat-label">Total Ingresos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${summary.total_egresos || 0}</div>
+          <div class="stat-label">Total Egresos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${summary.current_total_stock || 0}</div>
+          <div class="stat-label">Stock Total Actual</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${summary.total_movements || 0}</div>
+          <div class="stat-label">Total Movimientos</div>
+        </div>
+      `;
+    } catch (error) {
+      console.error('Error loading stock summary:', error);
+    }
+  }
+  
+  async function loadStockMovements(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      if (filters.movement_type) params.append('movement_type', filters.movement_type);
+      if (filters.product_id) params.append('product_id', filters.product_id);
+      params.append('limit', '100');
+      
+      const movements = await apiCall(`/stock-movements?${params.toString()}`);
+      const tbody = document.getElementById('stockMovementsTbody');
+      tbody.innerHTML = '';
+      
+      if (movements.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted)">No hay movimientos registrados</td></tr>';
+        return;
+      }
+      
+      movements.forEach(m => {
+        const tr = document.createElement('tr');
+        const typeClass = m.movement_type === 'INGRESO' ? 'text-success' : 'text-danger';
+        const typeIcon = m.movement_type === 'INGRESO' ? '⬆️' : '⬇️';
+        tr.innerHTML = `
+          <td>${formatDateIso(m.created_at)}</td>
+          <td>${escapeHtml(m.product_name || 'N/A')}</td>
+          <td class="${typeClass}">${typeIcon} ${m.movement_type}</td>
+          <td>${m.quantity}</td>
+          <td>${escapeHtml(m.reason || '-')}</td>
+          <td>${escapeHtml(m.username || 'Sistema')}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch (error) {
+      console.error('Error loading stock movements:', error);
+      alert('Error cargando movimientos de stock');
+    }
+  }
+  
+  // Event listeners for filters
+  if (isAdmin()) {
+    const filterType = document.getElementById('filterType');
+    const filterProduct = document.getElementById('filterProduct');
+    
+    filterType.onchange = () => {
+      loadStockMovements({
+        movement_type: filterType.value,
+        product_id: filterProduct.value
+      });
+    };
+    
+    filterProduct.onchange = () => {
+      loadStockMovements({
+        movement_type: filterType.value,
+        product_id: filterProduct.value
+      });
+    };
+    
+    // Form handlers
+    const openStockFormBtn = document.getElementById('openStockFormBtn');
+    const stockMovementForm = document.getElementById('stockMovementForm');
+    const cancelStockForm = document.getElementById('cancelStockForm');
+    
+    openStockFormBtn.onclick = () => {
+      stockMovementForm.classList.remove('hidden');
+      openStockFormBtn.disabled = true;
+    };
+    
+    cancelStockForm.onclick = () => {
+      stockMovementForm.classList.add('hidden');
+      stockMovementForm.reset();
+      openStockFormBtn.disabled = false;
+    };
+    
+    stockMovementForm.onsubmit = async (e) => {
+      e.preventDefault();
+      
+      const movement = {
+        product_id: parseInt(document.getElementById('smProduct').value),
+        movement_type: document.getElementById('smType').value,
+        quantity: parseInt(document.getElementById('smQuantity').value),
+        reason: document.getElementById('smReason').value
+      };
+      
+      try {
+        await apiCall('/stock-movements', {
+          method: 'POST',
+          body: JSON.stringify(movement)
+        });
+        
+        alert('Movimiento registrado exitosamente');
+        stockMovementForm.reset();
+        stockMovementForm.classList.add('hidden');
+        openStockFormBtn.disabled = false;
+        
+        // Reload data
+        await loadStockSummary();
+        await loadStockMovements();
+        
+      } catch (error) {
+        alert('Error registrando movimiento: ' + error.message);
+      }
+    };
+  }
+  
+  // Initial load
+  await loadStockSummary();
+  await loadStockMovements();
+}
+
 /* ===================== SALES / HISTORIAL ===================== */
 async function renderSalesView(){
   const content = clearMain();
@@ -779,6 +1021,7 @@ sidebarLinks.forEach(a=>{
     a.classList.add('active');
     const t = a.textContent.trim();
     if(t === 'Productos') await renderProductsView();
+    else if(t === 'Gestión de Stock') await renderStockView();
     else if(t === 'Ventas') await renderSalesView();
     else if(t === 'Reportes') await renderReportsView();
     else if(t === 'Configuración') await renderSettingsView();

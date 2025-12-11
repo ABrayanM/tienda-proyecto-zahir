@@ -11,6 +11,7 @@ const authRoutes = require('./routes/auth');
 const productRoutes = require('./routes/products');
 const salesRoutes = require('./routes/sales');
 const settingsRoutes = require('./routes/settings');
+const stockMovementsRoutes = require('./routes/stock-movements');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -69,6 +70,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/stock-movements', stockMovementsRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
