@@ -1,11 +1,21 @@
 const express = require('express');
 const router = express.Router();
+const { body, validationResult } = require('express-validator');
 const db = require('../config/db');
 // const bcrypt = require('bcryptjs'); // Uncomment to use password hashing
 
-// Login endpoint
-router.post('/login', async (req, res) => {
+// Login endpoint with validation
+router.post('/login', [
+  body('username').trim().notEmpty().withMessage('El usuario es requerido').isLength({ min: 3, max: 50 }).withMessage('El usuario debe tener entre 3 y 50 caracteres'),
+  body('password').notEmpty().withMessage('La contraseña es requerida').isLength({ min: 1, max: 255 }).withMessage('La contraseña es inválida')
+], async (req, res) => {
   try {
+    // Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, message: errors.array()[0].msg });
+    }
+
     const { username, password } = req.body;
 
     // NOTE: For development/demo purposes, passwords are stored in plain text.

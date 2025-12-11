@@ -1,10 +1,45 @@
 const express = require('express');
 const session = require('express-session');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
+const { initCsrfToken, csrfProtection } = require('./src/middleware/csrf');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Security middleware - helmet for HTTP headers security
+// Note: 'unsafe-inline' is used for scripts due to inline EJS scripts
+// For production, consider moving inline scripts to external files or using nonces
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'"], // TODO: Replace with nonces in production
+      imgSrc: ["'self'", "data:", "blob:"]
+    }
+  }
+}));
+
+// Rate limiting for authentication routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: 'Demasiados intentos de inicio de sesión, por favor intente más tarde',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// General API rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Middleware
 app.use(express.json());
@@ -17,8 +52,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: { 
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 horas
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    httpOnly: true, // Prevent XSS attacks
+    maxAge: 24 * 60 * 60 * 1000, // 24 horas
+    sameSite: 'strict' // CSRF protection via SameSite
   }
 }));
 
@@ -32,16 +69,20 @@ app.use((req, res, next) => {
   next();
 });
 
+// Initialize CSRF token for all requests
+app.use(initCsrfToken);
+
 // Routes
 const authRoutes = require('./src/routes/auth');
 const productRoutes = require('./src/routes/products');
 const salesRoutes = require('./src/routes/sales');
 const settingsRoutes = require('./src/routes/settings');
 
-app.use('/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/sales', salesRoutes);
-app.use('/api/settings', settingsRoutes);
+// Apply rate limiters and CSRF protection
+app.use('/auth', authLimiter, authRoutes);
+app.use('/api/products', apiLimiter, csrfProtection, productRoutes);
+app.use('/api/sales', apiLimiter, csrfProtection, salesRoutes);
+app.use('/api/settings', apiLimiter, csrfProtection, settingsRoutes);
 
 // Main routes
 app.get('/', (req, res) => {

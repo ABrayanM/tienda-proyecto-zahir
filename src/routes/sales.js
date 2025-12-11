@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { body, param, query, validationResult } = require('express-validator');
 const db = require('../config/db');
 
 // Middleware to check authentication
@@ -9,6 +10,32 @@ const requireAuth = (req, res, next) => {
   }
   next();
 };
+
+// Helper to handle validation errors
+const handleValidationErrors = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: errors.array()[0].msg });
+  }
+  next();
+};
+
+// Validation for creating a sale
+const validateSale = [
+  body('items').isArray({ min: 1 }).withMessage('Debe incluir al menos un producto'),
+  body('items.*.id').isInt({ min: 1 }).withMessage('ID de producto inválido'),
+  body('items.*.name').notEmpty().withMessage('Nombre de producto requerido'),
+  body('items.*.price').isFloat({ min: 0 }).withMessage('Precio inválido'),
+  body('items.*.qty').isInt({ min: 1 }).withMessage('Cantidad debe ser al menos 1')
+];
+
+const validateId = [
+  param('id').isInt({ min: 1 }).withMessage('ID inválido')
+];
+
+const validateReportPeriod = [
+  query('period').optional().isIn(['today', 'week', 'month', 'all']).withMessage('Período inválido')
+];
 
 // Get all sales
 router.get('/', requireAuth, async (req, res) => {
@@ -37,7 +64,7 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // Create a new sale
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, validateSale, handleValidationErrors, async (req, res) => {
   const connection = await db.getConnection();
   
   try {
@@ -94,7 +121,7 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 // Delete sale (Admin only)
-router.delete('/:id', requireAuth, async (req, res) => {
+router.delete('/:id', requireAuth, validateId, handleValidationErrors, async (req, res) => {
   try {
     if (req.session.user.role !== 'ADMIN') {
       return res.status(403).json({ success: false, message: 'No autorizado' });
@@ -109,7 +136,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 // Get sales reports
-router.get('/reports/summary', requireAuth, async (req, res) => {
+router.get('/reports/summary', requireAuth, validateReportPeriod, handleValidationErrors, async (req, res) => {
   try {
     if (req.session.user.role !== 'ADMIN') {
       return res.status(403).json({ success: false, message: 'No autorizado' });
