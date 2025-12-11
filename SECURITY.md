@@ -68,11 +68,14 @@ app.use('/api/auth/login', loginLimiter);
 
 ### 3. Password Requirements
 
-**Issue**: No password complexity requirements enforced.
+**Issue**: No password complexity requirements enforced. Default passwords are weak.
 
-**Risk**: Users can set weak passwords.
+**Risk**: Users can set weak passwords. Default users have simple passwords like '1234'.
 
-**Mitigation**: Consider adding password strength validation if deploying to production.
+**Mitigation**: 
+- Change default passwords immediately after initial setup
+- Consider adding password strength validation for production
+- Implement password change on first login
 
 ### 4. Input Validation
 

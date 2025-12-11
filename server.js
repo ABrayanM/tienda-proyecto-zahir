@@ -16,8 +16,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
+const allowedOrigins = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(',') 
+  : ['http://localhost:3000'];
+
 app.use(cors({
-  origin: true,
+  origin: process.env.NODE_ENV === 'production' ? allowedOrigins : true,
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' })); // Increased for base64 images
@@ -45,15 +49,17 @@ app.use(session({
 
 // CSRF protection (disabled for development, enable in production)
 // Note: When enabled, frontend must include CSRF token in requests
-const csrfProtection = csrf({ cookie: true });
 if (process.env.NODE_ENV === 'production') {
-  app.use(csrfProtection);
+  const csrfProtection = csrf({ cookie: true });
+  
+  // CSRF token endpoint (unprotected so frontend can get initial token)
+  app.get('/api/csrf-token', (req, res) => {
+    res.json({ csrfToken: req.csrfToken() });
+  });
+  
+  // Apply CSRF protection to all other API routes
+  app.use('/api', csrfProtection);
 }
-
-// CSRF token endpoint (for frontend to get token)
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
-});
 
 // Serve static files (frontend)
 app.use(express.static(path.join(__dirname)));

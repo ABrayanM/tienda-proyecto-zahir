@@ -90,6 +90,8 @@ async function initDatabase() {
     console.log('✅ Table "settings" created');
 
     // Insert default users
+    // NOTE: Default passwords are intentionally simple for initial setup
+    // IMPORTANT: Change these passwords after first login in production!
     const hashedZahir = await bcrypt.hash('programador', 10);
     const hashedCajero = await bcrypt.hash('1234', 10);
     const hashedBrayan = await bcrypt.hash('cajero', 10);
@@ -102,6 +104,7 @@ async function initDatabase() {
       ON DUPLICATE KEY UPDATE username=username
     `, [hashedZahir, hashedCajero, hashedBrayan]);
     console.log('✅ Default users inserted');
+    console.log('⚠️  WARNING: Default passwords are weak. Change them in production!');
 
     // Insert seed products
     await connection.query(`

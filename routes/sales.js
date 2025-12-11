@@ -80,6 +80,26 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Items are required' });
     }
 
+    // Validate stock availability for all items before processing
+    for (const item of items) {
+      const [products] = await connection.query(
+        'SELECT stock FROM products WHERE id = ? FOR UPDATE',
+        [item.id]
+      );
+      
+      if (products.length === 0) {
+        await connection.rollback();
+        return res.status(400).json({ error: `Product ${item.name} not found` });
+      }
+      
+      if (products[0].stock < item.qty) {
+        await connection.rollback();
+        return res.status(400).json({ 
+          error: `Insufficient stock for ${item.name}. Available: ${products[0].stock}, Requested: ${item.qty}` 
+        });
+      }
+    }
+
     // Create sale record
     const [saleResult] = await connection.query(
       'INSERT INTO sales (date, total, user_id) VALUES (NOW(), ?, ?)',
@@ -98,7 +118,7 @@ router.post('/', requireAuth, async (req, res) => {
 
       // Update product stock
       await connection.query(
-        'UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ?',
+        'UPDATE products SET stock = stock - ? WHERE id = ?',
         [item.qty, item.id]
       );
     }
