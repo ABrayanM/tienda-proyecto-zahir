@@ -989,14 +989,15 @@ async function renderInventoryView(){
         method: 'POST',
         body: JSON.stringify({ product_id, qty, reason: reason || 'Entrada de stock' })
       });
-      showToast(`Stock agregado exitosamente: +${qty} unidades`, 'success');
+      // Use message from backend if available
+      showToast(result.message || `Stock agregado exitosamente: +${qty} unidades`, 'success');
       content.querySelector('#formAddStock').classList.add('hidden');
       content.querySelector('#inProductId').value = '';
       content.querySelector('#inQty').value = '';
       content.querySelector('#inReason').value = '';
       await loadAndDisplayMovements(content);
     } catch (error) {
-      showToast('Error agregando stock: ' + error.message, 'error');
+      showToast(error.message, 'error');
     }
   };
 
@@ -1005,7 +1006,7 @@ async function renderInventoryView(){
     const qty = parseInt(content.querySelector('#adjQty').value);
     const reason = content.querySelector('#adjReason').value;
 
-    if (!product_id || qty === 0 || isNaN(qty) || !reason) {
+    if (!product_id || qty === 0 || isNaN(qty) || !reason || reason.trim().length === 0) {
       showToast('Por favor complete todos los campos correctamente', 'warning');
       return;
     }
@@ -1015,14 +1016,15 @@ async function renderInventoryView(){
         method: 'POST',
         body: JSON.stringify({ product_id, qty, reason })
       });
-      showToast(`Stock ajustado exitosamente: ${qty > 0 ? '+' : ''}${qty} unidades`, 'success');
+      // Use message from backend if available
+      showToast(result.message || `Stock ajustado exitosamente: ${qty > 0 ? '+' : ''}${qty} unidades`, 'success');
       content.querySelector('#formAdjustStock').classList.add('hidden');
       content.querySelector('#adjProductId').value = '';
       content.querySelector('#adjQty').value = '';
       content.querySelector('#adjReason').value = '';
       await loadAndDisplayMovements(content);
     } catch (error) {
-      showToast('Error ajustando stock: ' + error.message, 'error');
+      showToast(error.message, 'error');
     }
   };
 

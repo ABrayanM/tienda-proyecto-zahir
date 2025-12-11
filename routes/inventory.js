@@ -27,10 +27,15 @@ router.post('/in', requireAdmin, async (req, res) => {
 
     const { product_id, qty, reason } = req.body;
 
-    // Validate input
-    if (!product_id || !qty || qty <= 0) {
+    // Validate input with detailed messages
+    if (!product_id) {
       await connection.rollback();
-      return res.status(400).json({ error: 'Product ID and positive quantity are required' });
+      return res.status(400).json({ error: 'Se requiere el ID del producto' });
+    }
+
+    if (!qty || isNaN(qty) || qty <= 0) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'La cantidad debe ser un número positivo mayor a cero' });
     }
 
     // Check if product exists and lock it
@@ -41,8 +46,12 @@ router.post('/in', requireAdmin, async (req, res) => {
 
     if (products.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: 'Product not found' });
+      return res.status(404).json({ error: `Producto con ID ${product_id} no encontrado` });
     }
+
+    const productName = products[0].name;
+    const oldStock = products[0].stock;
+    const newStock = oldStock + parseInt(qty);
 
     // Update product stock
     await connection.query(
@@ -53,7 +62,7 @@ router.post('/in', requireAdmin, async (req, res) => {
     // Insert inventory movement
     const [movementResult] = await connection.query(
       'INSERT INTO inventory_movements (product_id, type, qty, reason, user_id) VALUES (?, ?, ?, ?, ?)',
-      [product_id, 'IN', qty, reason || 'Stock addition', req.session.user.id]
+      [product_id, 'IN', qty, reason || 'Entrada de stock', req.session.user.id]
     );
 
     await connection.commit();
@@ -66,6 +75,7 @@ router.post('/in', requireAdmin, async (req, res) => {
 
     res.status(201).json({
       success: true,
+      message: `Stock agregado exitosamente a "${productName}": ${oldStock} → ${newStock}`,
       movement_id: movementResult.insertId,
       product: updatedProduct[0]
     });
@@ -73,7 +83,7 @@ router.post('/in', requireAdmin, async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Error adding stock:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Error interno del servidor. Por favor, intenta nuevamente.' });
   } finally {
     connection.release();
   }
@@ -88,10 +98,20 @@ router.post('/adjust', requireAdmin, async (req, res) => {
 
     const { product_id, qty, reason } = req.body;
 
-    // Validate input
-    if (!product_id || qty === undefined || qty === null || qty === 0) {
+    // Validate input with detailed messages
+    if (!product_id) {
       await connection.rollback();
-      return res.status(400).json({ error: 'Product ID and non-zero quantity are required' });
+      return res.status(400).json({ error: 'Se requiere el ID del producto' });
+    }
+
+    if (qty === undefined || qty === null || qty === 0 || isNaN(qty)) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'La cantidad de ajuste debe ser un número diferente de cero' });
+    }
+
+    if (!reason || reason.trim().length === 0) {
+      await connection.rollback();
+      return res.status(400).json({ error: 'Se requiere una razón para el ajuste de inventario' });
     }
 
     // Check if product exists and lock it
@@ -102,9 +122,10 @@ router.post('/adjust', requireAdmin, async (req, res) => {
 
     if (products.length === 0) {
       await connection.rollback();
-      return res.status(404).json({ error: 'Product not found' });
+      return res.status(404).json({ error: `Producto con ID ${product_id} no encontrado` });
     }
 
+    const productName = products[0].name;
     const currentStock = products[0].stock;
     const newStock = currentStock + parseInt(qty);
 
@@ -112,7 +133,7 @@ router.post('/adjust', requireAdmin, async (req, res) => {
     if (newStock < 0) {
       await connection.rollback();
       return res.status(400).json({ 
-        error: `Insufficient stock. Current: ${currentStock}, Adjustment: ${qty}, Result would be: ${newStock}` 
+        error: `Stock insuficiente para "${productName}". Stock actual: ${currentStock}, Ajuste: ${qty}, Resultado: ${newStock}` 
       });
     }
 
@@ -123,10 +144,10 @@ router.post('/adjust', requireAdmin, async (req, res) => {
     );
 
     // Insert inventory movement - store the actual qty with sign to preserve direction
-    const adjustmentReason = reason || (qty > 0 ? 'Stock increase adjustment' : 'Stock decrease adjustment');
+    const adjustmentReason = `${reason} (${qty > 0 ? '+' : ''}${qty})`;
     const [movementResult] = await connection.query(
       'INSERT INTO inventory_movements (product_id, type, qty, reason, user_id) VALUES (?, ?, ?, ?, ?)',
-      [product_id, 'ADJUST', Math.abs(qty), `${adjustmentReason} (${qty > 0 ? '+' : ''}${qty})`, req.session.user.id]
+      [product_id, 'ADJUST', Math.abs(qty), adjustmentReason, req.session.user.id]
     );
 
     await connection.commit();
@@ -139,6 +160,7 @@ router.post('/adjust', requireAdmin, async (req, res) => {
 
     res.status(201).json({
       success: true,
+      message: `Stock ajustado exitosamente para "${productName}": ${currentStock} → ${newStock} (${qty > 0 ? '+' : ''}${qty})`,
       movement_id: movementResult.insertId,
       adjustment: qty,
       product: updatedProduct[0]
@@ -147,7 +169,7 @@ router.post('/adjust', requireAdmin, async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Error adjusting stock:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Error interno del servidor. Por favor, intenta nuevamente.' });
   } finally {
     connection.release();
   }
